@@ -1,13 +1,13 @@
 {
-  "name": "kerrialn/php-to-twig",
+  "name": "kerrialn/db-fixer",
   "autoload": {
     "psr-4": {
-      "PhpToTwig\\": "src/"
+      "DbFixer\\": "src/"
     }
   },
   "autoload-dev": {
     "psr-4": {
-      "Test\\": "tests/"
+      "DbFixerTest\\": "tests/"
     }
   },
   "scripts": {
@@ -20,14 +20,16 @@
   },
   "authors": [
     {
-      "name": "kez",
+      "name": "Kerrial Newham",
       "email": "kerrialbeckettnewham@gmail.com"
     }
   ],
   "require": {
     "symfony/console": "^7.2",
     "nikic/php-parser": "^5.4",
-    "symfony/finder": "^7.2"
+    "symfony/finder": "^7.2",
+    "symfony/filesystem": "^7.3",
+    "nette/utils": "^4.0"
   },
   "require-dev": {
     "phpunit/phpunit": "^12"

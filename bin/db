@@ -1,0 +1,20 @@
+#!/usr/bin/env php
+<?php
+
+require __DIR__ . '/../vendor/autoload.php';
+$file = getcwd() . '/db-fixer.php';
+
+use DbFixer\Command\DatabaseAnalyzerCommand;
+use DbFixer\Config\DbFixerConfig;
+use Symfony\Component\Console\Application;
+
+if (!file_exists($file)) {
+    throw new Exception("Configuration file not found: $file");
+}
+
+$config = new DbFixerConfig();
+(require $file)($config);
+
+$application = new Application();
+$application->add(new DatabaseAnalyzerCommand(config: $config));
+$application->run();
