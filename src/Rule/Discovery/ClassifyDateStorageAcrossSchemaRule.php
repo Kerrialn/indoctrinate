@@ -31,13 +31,11 @@ final class ClassifyDateStorageAcrossSchemaRule implements DatabaseFixRuleInterf
         // Heuristics: adjust as you like
         $nameLike = $context['name_like'] ?? [
             '%date%', '%time%', '%at%', '%created%', '%updated%', '%timestamp%',
-            '%expires%', '%expiry%', '%published%', '%scheduled%', '%dob%', '%birthday%'
+            '%expires%', '%expiry%', '%published%', '%scheduled%', '%dob%', '%birthday%',
         ];
-        $previewLimit = (int)($context['preview_limit'] ?? 3);
+        $previewLimit = (int) ($context['preview_limit'] ?? 3);
 
-        $nameWhere = implode(' OR ', array_map(function ($p) use ($pdo) {
-            return "LOWER(c.COLUMN_NAME) LIKE " . $this->q($p);
-        }, $nameLike));
+        $nameWhere = implode(' OR ', array_map(fn($p): string => "LOWER(c.COLUMN_NAME) LIKE " . $this->q($p), $nameLike));
 
         // Candidates: either native date/time types, or “suspicious” types by name
         $sql = "
@@ -59,31 +57,31 @@ final class ClassifyDateStorageAcrossSchemaRule implements DatabaseFixRuleInterf
         // Global summary tallies
         $summary = [
             'native_datetime' => 0,
-            'zero_date'       => 0,
-            'unix_seconds'    => 0,
-            'unix_millis'     => 0,
-            'mysql_datetime'  => 0,
-            'mysql_date'      => 0,
-            'iso8601'         => 0,
-            'ddmmyyyy'        => 0,
-            'other'           => 0,
+            'zero_date' => 0,
+            'unix_seconds' => 0,
+            'unix_millis' => 0,
+            'mysql_datetime' => 0,
+            'mysql_date' => 0,
+            'iso8601' => 0,
+            'ddmmyyyy' => 0,
+            'other' => 0,
         ];
 
         foreach ($cols as $c) {
             $table = $c['TABLE_NAME'];
-            $col   = $c['COLUMN_NAME'];
+            $col = $c['COLUMN_NAME'];
             $dtype = strtolower($c['DATA_TYPE']);
             $ctype = $c['COLUMN_TYPE'];
 
             // Native storage shortcut
-            if (in_array($dtype, ['date','datetime','timestamp'], true)) {
+            if (in_array($dtype, ['date', 'datetime', 'timestamp'], true)) {
                 // Count zero-date usage for native types
                 $zeroSql = sprintf(
                     "SELECT SUM(%s IN ('0000-00-00','0000-00-00 00:00:00')) AS zeros FROM `%s`",
                     $this->col($col, $dtype),
                     $this->qt($table)
                 );
-                $zeros = (int)($pdo->query($zeroSql)->fetchColumn() ?: 0);
+                $zeros = (int) ($pdo->query($zeroSql)->fetchColumn() ?: 0);
 
                 $summary['native_datetime']++;
                 if ($zeros > 0) {
@@ -108,7 +106,8 @@ final class ClassifyDateStorageAcrossSchemaRule implements DatabaseFixRuleInterf
             }
 
             // For text/number storage, classify patterns with one aggregation pass
-            $aggSql = sprintf("
+            $aggSql = sprintf(
+                "
                 SELECT
                     COUNT(*) AS total,
                     SUM(%1\$s IS NULL OR %1\$s = '') AS null_or_empty,
@@ -125,23 +124,23 @@ final class ClassifyDateStorageAcrossSchemaRule implements DatabaseFixRuleInterf
             );
 
             $agg = $pdo->query($aggSql)->fetch(PDO::FETCH_ASSOC) ?: [];
-            $total = (int)($agg['total'] ?? 0);
+            $total = (int) ($agg['total'] ?? 0);
 
             // Decide dominant class
             $classMap = [
-                'unix_seconds'   => (int)($agg['unix10'] ?? 0),
-                'unix_millis'    => (int)($agg['unix13'] ?? 0),
-                'mysql_datetime' => (int)($agg['mysql_datetime'] ?? 0),
-                'mysql_date'     => (int)($agg['mysql_date'] ?? 0),
-                'iso8601'        => (int)($agg['iso8601'] ?? 0),
-                'ddmmyyyy'       => (int)($agg['ddmmyyyy'] ?? 0),
+                'unix_seconds' => (int) ($agg['unix10'] ?? 0),
+                'unix_millis' => (int) ($agg['unix13'] ?? 0),
+                'mysql_datetime' => (int) ($agg['mysql_datetime'] ?? 0),
+                'mysql_date' => (int) ($agg['mysql_date'] ?? 0),
+                'iso8601' => (int) ($agg['iso8601'] ?? 0),
+                'ddmmyyyy' => (int) ($agg['ddmmyyyy'] ?? 0),
             ];
             arsort($classMap);
             $topClass = key($classMap);
             $topCount = current($classMap) ?: 0;
 
             $classified = 'other';
-            $recommend  = 'review column';
+            $recommend = 'review column';
 
             if ($topCount > 0) {
                 $classified = $topClass;
@@ -173,13 +172,13 @@ final class ClassifyDateStorageAcrossSchemaRule implements DatabaseFixRuleInterf
             $samples = [];
             if ($topCount > 0) {
                 $regex = match ($topClass) {
-                    'unix_seconds'   => '^[0-9]{10}$',
-                    'unix_millis'    => '^[0-9]{13}$',
+                    'unix_seconds' => '^[0-9]{10}$',
+                    'unix_millis' => '^[0-9]{13}$',
                     'mysql_datetime' => '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$',
-                    'mysql_date'     => '^[0-9]{4}-[0-9]{2}-[0-9]{2}$',
-                    'iso8601'        => '^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}(:[0-9]{2})?([.][0-9]+)?([Zz]|[+-][0-9]{2}(:?[0-9]{2})?)$',
-                    'ddmmyyyy'       => '^[0-9]{2}/[0-9]{2}/[0-9]{4}$',
-                    default          => null
+                    'mysql_date' => '^[0-9]{4}-[0-9]{2}-[0-9]{2}$',
+                    'iso8601' => '^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}(:[0-9]{2})?([.][0-9]+)?([Zz]|[+-][0-9]{2}(:?[0-9]{2})?)$',
+                    'ddmmyyyy' => '^[0-9]{2}/[0-9]{2}/[0-9]{4}$',
+                    default => null
                 };
                 if ($regex) {
                     $sampleSql = sprintf(
@@ -197,7 +196,7 @@ final class ClassifyDateStorageAcrossSchemaRule implements DatabaseFixRuleInterf
                     );
                     try {
                         $vals = array_column($pdo->query($sampleSql)->fetchAll(PDO::FETCH_ASSOC), 'v');
-                        if ($vals) {
+                        if ($vals !== []) {
                             $samples = $vals;
                         }
                     } catch (\Throwable $e) {
@@ -209,17 +208,17 @@ final class ClassifyDateStorageAcrossSchemaRule implements DatabaseFixRuleInterf
             $summaryText = sprintf(
                 'total=%d; null_or_empty=%d; unix10=%d; unix13=%d; mysql_dt=%d; mysql_d=%d; iso=%d; ddmmyyyy=%d',
                 $total,
-                (int)($agg['null_or_empty'] ?? 0),
-                (int)($agg['unix10'] ?? 0),
-                (int)($agg['unix13'] ?? 0),
-                (int)($agg['mysql_datetime'] ?? 0),
-                (int)($agg['mysql_date'] ?? 0),
-                (int)($agg['iso8601'] ?? 0),
-                (int)($agg['ddmmyyyy'] ?? 0)
+                (int) ($agg['null_or_empty'] ?? 0),
+                (int) ($agg['unix10'] ?? 0),
+                (int) ($agg['unix13'] ?? 0),
+                (int) ($agg['mysql_datetime'] ?? 0),
+                (int) ($agg['mysql_date'] ?? 0),
+                (int) ($agg['iso8601'] ?? 0),
+                (int) ($agg['ddmmyyyy'] ?? 0)
             );
 
             $target = strtoupper($dtype) . " {$classified}";
-            if ($samples) {
+            if ($samples !== []) {
                 $recommend .= '; samples: ' . implode(' | ', array_map('strval', $samples));
             }
 
@@ -264,7 +263,7 @@ final class ClassifyDateStorageAcrossSchemaRule implements DatabaseFixRuleInterf
         $q = '`' . $this->qt($name) . '`';
         $d = strtolower($dtype);
         // Cast numerics to char so REGEXP works
-        if (in_array($d, ['int','bigint','decimal','double','float'], true)) {
+        if (in_array($d, ['int', 'bigint', 'decimal', 'double', 'float'], true)) {
             return "CAST($q AS CHAR)";
         }
         return $q;

@@ -2,25 +2,29 @@
 
 namespace DbFixer\Rule\Integrity\Constraint;
 
-
 use DbFixer\Rule\Contract\RuleConstraintInterface;
 use InvalidArgumentException;
 
 final class EnsureAutoIncrementPrimaryKeyRuleConstraints implements RuleConstraintInterface
 {
-    /** @var bool */
     private bool $forceOnJoinTables;
-    /** @var bool */
+
     private bool $replaceSingleNonIntPrimary;
-    /** @var string[] */
+
+    /**
+     * @var string[]
+     */
     private array $replaceSingleNonIntPrimaryAllow;
-    /** @var string[] */
+
+    /**
+     * @var string[]
+     */
     private array $skipTableLike;
-    /** @var int */
+
     private int $maxRowsToApply;
-    /** @var bool */
+
     private bool $onlineAlters;
-    /** @var bool */
+
     private bool $debug;
 
     /**
@@ -43,26 +47,26 @@ final class EnsureAutoIncrementPrimaryKeyRuleConstraints implements RuleConstrai
     )
     {
         foreach ($replaceSingleNonIntPrimaryAllow as $t) {
-            if (!is_string($t) || $t === '') {
+            if (! is_string($t) || $t === '') {
                 throw new InvalidArgumentException('replaceSingleNonIntPrimaryAllow must be non-empty strings');
             }
         }
         foreach ($skipTableLike as $p) {
-            if (!is_string($p) || $p === '') {
+            if (! is_string($p) || $p === '') {
                 throw new InvalidArgumentException('skipTableLike must be non-empty strings');
             }
         }
-        if (!is_int($maxRowsToApply) || $maxRowsToApply < 0) {
+        if (! is_int($maxRowsToApply) || $maxRowsToApply < 0) {
             throw new InvalidArgumentException('maxRowsToApply must be an integer >= 0');
         }
 
-        $this->forceOnJoinTables = (bool)$forceOnJoinTables;
-        $this->replaceSingleNonIntPrimary = (bool)$replaceSingleNonIntPrimary;
+        $this->forceOnJoinTables = (bool) $forceOnJoinTables;
+        $this->replaceSingleNonIntPrimary = (bool) $replaceSingleNonIntPrimary;
         $this->replaceSingleNonIntPrimaryAllow = array_values($replaceSingleNonIntPrimaryAllow);
         $this->skipTableLike = array_values($skipTableLike);
-        $this->maxRowsToApply = (int)$maxRowsToApply;
-        $this->onlineAlters = (bool)$onlineAlters;
-        $this->debug = (bool)$debug;
+        $this->maxRowsToApply = $maxRowsToApply;
+        $this->onlineAlters = (bool) $onlineAlters;
+        $this->debug = (bool) $debug;
     }
 
     public function toContext(): array

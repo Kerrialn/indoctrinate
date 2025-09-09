@@ -31,10 +31,10 @@ final class EnsureTransactionalEnginesRule implements DatabaseFixRuleInterface
         $results = [];
 
         // Context flags
-        $forceMemory   = (bool)($context['force_convert_memory']  ?? false);
-        $forceArchive  = (bool)($context['force_convert_archive'] ?? false);
-        $forceCsv      = (bool)($context['force_convert_csv']     ?? false);
-        $rowFormat     = (string)($context['row_format']          ?? 'DYNAMIC');
+        $forceMemory = (bool) ($context['force_convert_memory'] ?? false);
+        $forceArchive = (bool) ($context['force_convert_archive'] ?? false);
+        $forceCsv = (bool) ($context['force_convert_csv'] ?? false);
+        $rowFormat = (string) ($context['row_format'] ?? 'DYNAMIC');
 
         // Server info (useful for hints about features)
         $versionRow = $pdo->query("SELECT @@version AS v, @@version_comment AS c")->fetch(PDO::FETCH_ASSOC);
@@ -65,17 +65,17 @@ final class EnsureTransactionalEnginesRule implements DatabaseFixRuleInterface
 
         // Collect FULLTEXT and SPATIAL index presence per table (for notes)
         $fulltextByTable = $this->indexPresence($pdo, 'FULLTEXT');
-        $spatialByTable  = $this->indexPresence($pdo, 'SPATIAL');
+        $spatialByTable = $this->indexPresence($pdo, 'SPATIAL');
 
         $nonInno = 0;
 
         foreach ($tables as $t) {
-            $table  = $t['TABLE_NAME'];
-            $engine = strtoupper((string)$t['ENGINE']);
-            $format = (string)$t['ROW_FORMAT'];
-            $rows   = (int)$t['TABLE_ROWS'];
-            $bytes  = (int)$t['DATA_LENGTH'] + (int)$t['INDEX_LENGTH'];
-            $mb     = $bytes > 0 ? round($bytes / (1024 * 1024), 2) : 0.0;
+            $table = $t['TABLE_NAME'];
+            $engine = strtoupper((string) $t['ENGINE']);
+            $format = (string) $t['ROW_FORMAT'];
+            $rows = (int) $t['TABLE_ROWS'];
+            $bytes = (int) $t['DATA_LENGTH'] + (int) $t['INDEX_LENGTH'];
+            $mb = $bytes > 0 ? round($bytes / (1024 * 1024), 2) : 0.0;
 
             // Some system tables may have ENGINE NULL; skip those silently
             if ($engine === '' || $engine === 'INNODB') {
@@ -85,7 +85,7 @@ final class EnsureTransactionalEnginesRule implements DatabaseFixRuleInterface
             $nonInno++;
 
             $hasFulltext = $fulltextByTable[$table] ?? false;
-            $hasSpatial  = $spatialByTable[$table] ?? false;
+            $hasSpatial = $spatialByTable[$table] ?? false;
 
             $notes = [];
             if ($hasFulltext) {
@@ -97,10 +97,10 @@ final class EnsureTransactionalEnginesRule implements DatabaseFixRuleInterface
             $notes[] = "estimated rows: {$rows}";
             $notes[] = "approx size: {$mb} MB";
 
-            $noteString = $notes ? ' (' . implode('; ', $notes) . ')' : '';
+            $noteString = $notes !== [] ? ' (' . implode('; ', $notes) . ')' : '';
 
             // Special engines often used intentionally
-            if ($engine === 'MEMORY' && !$forceMemory) {
+            if ($engine === 'MEMORY' && ! $forceMemory) {
                 $results[] = new Log(
                     self::getName(),
                     $table,
@@ -110,7 +110,7 @@ final class EnsureTransactionalEnginesRule implements DatabaseFixRuleInterface
                 );
                 continue;
             }
-            if ($engine === 'ARCHIVE' && !$forceArchive) {
+            if ($engine === 'ARCHIVE' && ! $forceArchive) {
                 $results[] = new Log(
                     self::getName(),
                     $table,
@@ -120,7 +120,7 @@ final class EnsureTransactionalEnginesRule implements DatabaseFixRuleInterface
                 );
                 continue;
             }
-            if ($engine === 'CSV' && !$forceCsv) {
+            if ($engine === 'CSV' && ! $forceCsv) {
                 $results[] = new Log(
                     self::getName(),
                     $table,
@@ -155,7 +155,7 @@ final class EnsureTransactionalEnginesRule implements DatabaseFixRuleInterface
         $output->writeln(sprintf('  • tables not using InnoDB: %d', $nonInno));
 
         // Optional: preview a few logs when debug is on
-        if (!empty($results) && ($context['debug'] ?? false)) {
+        if ($results !== [] && ($context['debug'] ?? false)) {
             foreach (array_slice($results, 0, 5) as $log) {
                 $output->writeln('  → ' . $log->getMessage());
             }
@@ -176,7 +176,9 @@ final class EnsureTransactionalEnginesRule implements DatabaseFixRuleInterface
               AND INDEX_TYPE = :type
             GROUP BY TABLE_NAME
         ");
-        $stmt->execute([':type' => strtoupper($indexType)]);
+        $stmt->execute([
+            ':type' => strtoupper($indexType),
+        ]);
         $out = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $out[$r['TABLE_NAME']] = true;

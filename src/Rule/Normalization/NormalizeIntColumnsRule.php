@@ -51,12 +51,12 @@ final class NormalizeIntColumnsRule implements DatabaseFixRuleInterface
 
         foreach ($columns as $col) {
             $table = $col['TABLE_NAME'];
-            $name  = $col['COLUMN_NAME'];
+            $name = $col['COLUMN_NAME'];
             $ctype = strtolower(trim($col['COLUMN_TYPE'])); // full type string
 
-            $isUnsigned   = $this->hasUnsigned($ctype);
-            $hasZerofill  = $this->hasZerofill($ctype);
-            $width        = $this->getDisplayWidth($ctype); // int or null
+            $isUnsigned = $this->hasUnsigned($ctype);
+            $hasZerofill = $this->hasZerofill($ctype);
+            $width = $this->getDisplayWidth($ctype); // int or null
 
             // A. INT(1) looks like boolean → suggest TINYINT(1)
             if ($width === 1) {
@@ -72,7 +72,7 @@ final class NormalizeIntColumnsRule implements DatabaseFixRuleInterface
 
             // B. ZEROFILL is deprecated / not modeled by Doctrine → remove it
             if ($hasZerofill) {
-                $normalized = $this->normalizedInt($isUnsigned, /*stripWidth*/ true);
+                $normalized = $this->normalizedInt($isUnsigned);
                 $results[] = new Log(
                     self::getName(),
                     $table,
@@ -85,7 +85,7 @@ final class NormalizeIntColumnsRule implements DatabaseFixRuleInterface
             // C. Display width (INT(11)) is deprecated in MySQL 8 → drop width
             if ($width !== null) {
                 // If it wasn't already suggested above, still propose a widthless type
-                $normalized = $this->normalizedInt($isUnsigned, /*stripWidth*/ true);
+                $normalized = $this->normalizedInt($isUnsigned);
                 $results[] = new Log(
                     self::getName(),
                     $table,
@@ -96,8 +96,8 @@ final class NormalizeIntColumnsRule implements DatabaseFixRuleInterface
             }
 
             // D. If none of the above triggered but type has extra tokens (safety net), flag it
-            if (!$hasZerofill && $width === null && !$this->isCleanInt($ctype)) {
-                $normalized = $this->normalizedInt($isUnsigned, true);
+            if (! $hasZerofill && $width === null && ! $this->isCleanInt($ctype)) {
+                $normalized = $this->normalizedInt($isUnsigned);
                 $results[] = new Log(
                     self::getName(),
                     $table,
@@ -135,12 +135,12 @@ final class NormalizeIntColumnsRule implements DatabaseFixRuleInterface
         $fkRows = $fkStmt->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($fkRows as $row) {
-            $childUnsigned  = $this->hasUnsigned($row['child_column_type']);
+            $childUnsigned = $this->hasUnsigned($row['child_column_type']);
             $parentUnsigned = $this->hasUnsigned($row['parent_column_type']);
 
             if ($childUnsigned !== $parentUnsigned) {
                 // Suggest making child match parent signedness (safer than altering PKs)
-                $suggest = $this->normalizedInt($parentUnsigned, true);
+                $suggest = $this->normalizedInt($parentUnsigned);
                 $results[] = new Log(
                     self::getName(),
                     $row['child_table'],
@@ -155,7 +155,7 @@ final class NormalizeIntColumnsRule implements DatabaseFixRuleInterface
         $results = $this->uniqueLogs($results);
 
         // Optional: show the first few offenders when debug=true
-        if (!empty($results) && ($context['debug'] ?? false)) {
+        if ($results !== [] && ($context['debug'] ?? false)) {
             foreach (array_slice($results, 0, 5) as $log) {
                 // Assuming Log has public getters; adjust if different
                 $output->writeln(sprintf(
@@ -196,7 +196,7 @@ final class NormalizeIntColumnsRule implements DatabaseFixRuleInterface
         return (bool) preg_match('/^int( unsigned)?$/i', trim($columnType));
     }
 
-    private function normalizedInt(bool $unsigned, bool $stripWidth = true): string
+    private function normalizedInt(bool $unsigned): string
     {
         // We always strip width for MySQL 8 compatibility.
         return $unsigned ? 'INT UNSIGNED' : 'INT';
@@ -209,10 +209,10 @@ final class NormalizeIntColumnsRule implements DatabaseFixRuleInterface
     private function uniqueLogs(array $logs): array
     {
         $seen = [];
-        $out  = [];
+        $out = [];
         foreach ($logs as $log) {
             $key = $log->getRule() . '|' . $log->getTable() . '|' . $log->getColumn() . '|' . $log->getCurrent() . '|' . $log->getTarget();
-            if (!isset($seen[$key])) {
+            if (! isset($seen[$key])) {
                 $seen[$key] = true;
                 $out[] = $log;
             }

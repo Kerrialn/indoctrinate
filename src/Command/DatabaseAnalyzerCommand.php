@@ -20,40 +20,84 @@ use Symfony\Component\Filesystem\Filesystem;
 #[AsCommand(name: 'fix')]
 class DatabaseAnalyzerCommand extends Command
 {
-    /** @var DbFixerConfig */
-    private $config;
+    /** @var DbFixerConfig|null */
+    private $config = null;
 
-    public function __construct(DbFixerConfig $config)
-    {
-        $this->config = $config;
-        parent::__construct();
-    }
+    /** @var bool */
+    private $configJustCreated = false;
 
     protected function configure(): void
     {
         $this
             ->setDescription('Analyzes & fixes issues in database configuration')
-            // Boolean switch is more idiomatic, but we keep your signature intact
-            ->addOption(name: 'dry', shortcut: InputOption::VALUE_OPTIONAL, description: 'Analyze without fixes')
-            ->addOption('log', null, InputOption::VALUE_OPTIONAL, 'Log output to file');
+            ->addOption('dry', null, InputOption::VALUE_OPTIONAL, 'Analyze without fixes')
+            ->addOption('log', null, InputOption::VALUE_OPTIONAL, 'Log output to file')
+            ->addOption('prod', null, InputOption::VALUE_NONE, 'Prod mode (override connection from indoctrinate.php)')
+            ->addOption('dsn', null, InputOption::VALUE_REQUIRED, 'DSN, e.g. mysql://user:pass@host:3306/db')
+            ->addOption('db-host', null, InputOption::VALUE_REQUIRED, 'DB host')
+            ->addOption('db-port', null, InputOption::VALUE_REQUIRED, 'DB port')
+            ->addOption('db-name', null, InputOption::VALUE_REQUIRED, 'DB name')
+            ->addOption('db-user', null, InputOption::VALUE_REQUIRED, 'DB user')
+            ->addOption('db-pass', null, InputOption::VALUE_OPTIONAL, 'DB password (prefer --db-pass-file)')
+            ->addOption('db-pass-file', null, InputOption::VALUE_OPTIONAL, 'Path to file containing DB password');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $io       = new SymfonyStyle($input, $output);
-        $isDry    = (bool)$input->getOption('dry');
-        $logDir   = $input->getOption('log');
-        $logHandle = null;
-        $logPath   = null;
+        $io         = new SymfonyStyle($input, $output);
+        $isDry      = (bool)$input->getOption('dry');
+        $logDir     = $input->getOption('log');
+        $isProd     = (bool)$input->getOption('prod');
+        $logHandle  = null;
+        $logPath    = null;
         $filesystem = new Filesystem();
 
+        $configFilePath = getcwd() . '/indoctrinate.php';
+        $distFilePath   = getcwd() . '/indoctrinate.dist.php';
+
+        // Ensure config file exists (and STOP if we just created it)
+        $ensureStatus = $this->ensureConfigurationFile($filesystem, $io, $configFilePath, $distFilePath, $isProd);
+        if ($ensureStatus !== Command::SUCCESS) {
+            return $ensureStatus;
+        }
+        if ($this->configJustCreated) {
+            $io->success("Configuration file created at {$configFilePath}. Not running any rules this time. Re-run the command after updating the configuration file.");
+            return Command::SUCCESS;
+        }
+
+        $this->config = new DbFixerConfig();
+
+        // Load rules (and maybe default connection) from indoctrinate.php
+        $loader = require $configFilePath;
+        if (!is_callable($loader)) {
+            $io->error("File $configFilePath must return a callable that accepts DbFixerConfig.");
+            return Command::FAILURE;
+        }
+        $loader($this->config);
+
+        // Prod mode: override connection details via CLI flags
+        if ($isProd) {
+            $creds = $this->resolveProdCredentials($input, $io);
+            if ($creds === null) {
+                return Command::INVALID;
+            }
+            $this->config->connection(
+                $creds['driver'],
+                $creds['host'],
+                $creds['port'],
+                $creds['dbname'],
+                $creds['user'],
+                $creds['password']
+            );
+        }
+
+        // Optional logfile
         if (!empty($logDir)) {
             try {
                 if (!$filesystem->exists($logDir)) {
                     $filesystem->mkdir($logDir);
                 }
-
-                $timestamp  = date('Y-m-d_H-i-s');
+                $timestamp   = date('Y-m-d_H-i-s');
                 $logFilename = "db-fixer-{$timestamp}.log";
                 $logPath     = rtrim($logDir, '/\\') . DIRECTORY_SEPARATOR . $logFilename;
 
@@ -61,7 +105,6 @@ class DatabaseAnalyzerCommand extends Command
                 if (!$logHandle) {
                     throw new RuntimeException("Could not open log file for writing: $logPath");
                 }
-
                 fwrite($logHandle, "[START] DB Fix started at " . date('Y-m-d H:i:s') . PHP_EOL);
             } catch (IOExceptionInterface $e) {
                 $io->error("Failed to prepare log file: " . $e->getMessage());
@@ -85,12 +128,12 @@ class DatabaseAnalyzerCommand extends Command
         $io->success("Connected to database.");
         $io->newLine();
 
+        // Load rule definitions
         if (method_exists($this->config, 'getRuleDefinitions')) {
-            /** @var array<int, array{class:string, RuleConstraintInterface}> $ruleDefs */
+            /** @var array<int, array{class:string, constraints:?RuleConstraintInterface}> $ruleDefs */
             $ruleDefs = $this->config->getRuleDefinitions();
         } else {
-            // Back-compat: just class names
-            $ruleDefs = array_map(function ($class) {
+            $ruleDefs = array_map(function (string $class): array {
                 return ['class' => $class, 'constraints' => null];
             }, $this->config->getRules());
         }
@@ -112,7 +155,6 @@ class DatabaseAnalyzerCommand extends Command
             }
 
             $rule = new $ruleClass();
-
             if (!$rule instanceof DatabaseFixRuleInterface) {
                 $msg = "Rule {$ruleClass} does not implement DatabaseFixRuleInterface.";
                 $io->warning($msg);
@@ -124,7 +166,6 @@ class DatabaseAnalyzerCommand extends Command
             $io->section($title);
             $this->logMessage($logHandle, $title);
 
-            // Build context from constraints object + dry flag
             $ruleContext = ($constraintsObj instanceof RuleConstraintInterface) ? $constraintsObj->toContext() : [];
             $context     = array_merge($ruleContext, ['dry' => $isDry]);
 
@@ -155,15 +196,12 @@ class DatabaseAnalyzerCommand extends Command
                     $pdo->commit();
                     $io->success('Transaction committed.');
                     $this->logMessage($logHandle, "✔ {$ruleClass} committed");
+                } elseif ($isDry) {
+                    $io->note('Dry run: no schema changes were executed.');
+                    $this->logMessage($logHandle, "✔ {$ruleClass} rolled back (dry run)");
                 } else {
-                    if ($isDry) {
-                        $io->note('Dry run: no schema changes were executed.');
-                        $this->logMessage($logHandle, "✔ {$ruleClass} rolled back (dry run)");
-                    } else {
-                        // Destructive rules run without an outer transaction (DDL auto-commits)
-                        $io->success('Rule finished.');
-                        $this->logMessage($logHandle, "✔ {$ruleClass} applied");
-                    }
+                    $io->success('Rule finished.');
+                    $this->logMessage($logHandle, "✔ {$ruleClass} applied");
                 }
             } catch (\Throwable $e) {
                 if ($useTransaction && $pdo->inTransaction()) {
@@ -191,6 +229,45 @@ class DatabaseAnalyzerCommand extends Command
     }
 
     /**
+     * Ensure indoctrinate.php exists. If we create it now, set $this->configJustCreated=true
+     * and return SUCCESS so the caller can exit early.
+     */
+    private function ensureConfigurationFile(Filesystem $filesystem, SymfonyStyle $io, string $configFilePath, string $distFilePath, bool $isProd): int
+    {
+        if (is_file($configFilePath)) {
+            return Command::SUCCESS;
+        }
+
+        if ($isProd) {
+            $io->error("Configuration file not found: $configFilePath. In --prod, the file must exist so rules can be loaded. Copy $distFilePath and adjust it, then rerun.");
+            return Command::FAILURE;
+        }
+
+        $io->warning("Configuration file not found: $configFilePath");
+        $generate = $io->confirm("Do you want to generate it from $distFilePath?", true);
+
+        if (!$generate) {
+            $io->error("Aborted: Configuration file is required.");
+            return Command::FAILURE;
+        }
+
+        if (!is_file($distFilePath)) {
+            $io->error("Distribution file not found: $distFilePath");
+            return Command::FAILURE;
+        }
+
+        try {
+            $filesystem->copy($distFilePath, $configFilePath, true);
+            $this->configJustCreated = true;
+            $io->success("File $configFilePath has been generated.");
+            return Command::SUCCESS;
+        } catch (IOExceptionInterface $e) {
+            $io->error("Failed to generate $configFilePath: " . $e->getMessage());
+            return Command::FAILURE;
+        }
+    }
+
+    /**
      * @param resource|null $logHandle
      */
     private function logMessage($logHandle, string $message): void
@@ -198,5 +275,53 @@ class DatabaseAnalyzerCommand extends Command
         if ($logHandle) {
             fwrite($logHandle, $message . PHP_EOL);
         }
+    }
+
+    private function resolveProdCredentials(InputInterface $input, SymfonyStyle $io): ?array
+    {
+        $dsn = $input->getOption('dsn');
+        if ($dsn) {
+            $parts = parse_url((string)$dsn);
+            if ($parts === false) {
+                $io->error('Invalid --dsn (expected scheme://user:pass@host:port/dbname)');
+                return null;
+            }
+            return [
+                'driver'   => rtrim($parts['scheme'] ?? 'mysql', ':/'),
+                'host'     => $parts['host'] ?? '127.0.0.1',
+                'port'     => isset($parts['port']) ? (int)$parts['port'] : 3306,
+                'dbname'   => ltrim($parts['path'] ?? '', '/'),
+                'user'     => $parts['user'] ?? '',
+                'password' => $parts['pass'] ?? '',
+            ];
+        }
+
+        $host = $input->getOption('db-host');
+        $name = $input->getOption('db-name');
+        $user = $input->getOption('db-user');
+
+        if (!$host || !$name || !$user) {
+            $io->error('In --prod, provide --dsn OR --db-host --db-name --db-user [--db-pass|--db-pass-file] [--db-port].');
+            return null;
+        }
+
+        $passFile = $input->getOption('db-pass-file');
+        $pass     = (string)$input->getOption('db-pass');
+        if ($passFile) {
+            if (!is_readable($passFile)) {
+                $io->error('Cannot read --db-pass-file');
+                return null;
+            }
+            $pass = trim((string)file_get_contents($passFile));
+        }
+
+        return [
+            'driver'   => 'mysql',
+            'host'     => (string)$host,
+            'port'     => (int)($input->getOption('db-port') ?: 3306),
+            'dbname'   => (string)$name,
+            'user'     => (string)$user,
+            'password' => $pass,
+        ];
     }
 }

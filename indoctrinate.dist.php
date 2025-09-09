@@ -12,13 +12,14 @@ use DbFixer\Rule\Normalization\NormalizeTinyint4ColumnsRule;
 use DbFixer\Rule\Validation\DetectOrphanedChildRowsRule;
 
 return static function (DbFixerConfig $config): void {
+
     $config->connection(
         driver: 'mysql',
         host: '127.0.0.1',
         port: 4406,
-        dbname: 'NETWORK_SITE_DEV_DB_V1',
-        user: 'root',
-        password: '12345678',
+        dbname: 'db_name',
+        user: 'user',
+        password: 'password',
     );
 
     $config->rules([

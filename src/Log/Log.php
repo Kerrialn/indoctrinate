@@ -52,5 +52,4 @@ final readonly class Log
             $this->getTo()
         );
     }
-
 }

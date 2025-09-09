@@ -27,12 +27,11 @@ final class EnsureAutoIncrementPrimaryKeyRule implements DatabaseFixRuleInterfac
     public function apply(PDO $pdo, OutputInterface $output, array $context = []): array
     {
         $results = [];
-        $isDry = (bool)($context['dry'] ?? false);
+        $isDry = (bool) ($context['dry'] ?? false);
 
-        $forceOnJoins = (bool)($context['force_on_join_tables'] ?? false);
-        $replaceSingleNonIntPrimary = (bool)($context['replace_single_non_int_primary'] ?? false);
+        $forceOnJoins = (bool) ($context['force_on_join_tables'] ?? false);
+        $replaceSingleNonIntPrimary = (bool) ($context['replace_single_non_int_primary'] ?? false);
 
-        // Collect base tables
         $tables = $pdo->query("
             SELECT TABLE_NAME
             FROM INFORMATION_SCHEMA.TABLES
@@ -45,7 +44,7 @@ final class EnsureAutoIncrementPrimaryKeyRule implements DatabaseFixRuleInterfac
         foreach ($tables as $table) {
             $pkCols = $this->getPrimaryKeyColumns($pdo, $table);
 
-            // 0) Already good? Single-column primary named 'id', integer family, auto-increment → skip
+            // Already ideal: single int AUTO_INCREMENT on `id`
             if (\count($pkCols) === 1 && strtolower($pkCols[0]) === 'id') {
                 $idInfo = $this->getColumnInfo($pdo, $table, 'id');
                 if ($idInfo && $this->isIntegerFamily($idInfo['DATA_TYPE']) && stripos($idInfo['EXTRA'] ?? '', 'auto_increment') !== false) {
@@ -53,7 +52,6 @@ final class EnsureAutoIncrementPrimaryKeyRule implements DatabaseFixRuleInterfac
                 }
             }
 
-            // Detect pure join tables and skip unless forced
             if (!$forceOnJoins && $this->isPureJoinTable($pdo, $table)) {
                 $results[] = new Log(
                     self::getName(),
@@ -65,31 +63,26 @@ final class EnsureAutoIncrementPrimaryKeyRule implements DatabaseFixRuleInterfac
                 continue;
             }
 
-            // Case A: table has no primary key at all
-            if (empty($pkCols)) {
+            if ($pkCols === []) {
                 $plan = $this->planForNoPrimaryKey($pdo, $table);
                 $this->emitOrApply($pdo, $results, $table, $plan, $isDry);
                 continue;
             }
 
-            // Case B: composite primary key
             if (\count($pkCols) > 1) {
-                $plan = $this->planForCompositePrimaryKey($pdo, $table, $pkCols);
+                $plan = $this->planForCompositePrimaryKey($table, $pkCols);
                 $this->emitOrApply($pdo, $results, $table, $plan, $isDry);
                 continue;
             }
 
-            // Case C: single-column primary key
+            // Single-column PK
             $pkCol = $pkCols[0];
             $pkInfo = $this->getColumnInfo($pdo, $table, $pkCol);
 
             if ($pkInfo && $this->isIntegerFamily($pkInfo['DATA_TYPE'])) {
-                // Single integer primary key (but maybe not named 'id')
                 if (strtolower($pkCol) === 'id' && stripos($pkInfo['EXTRA'] ?? '', 'auto_increment') !== false) {
-                    // Already ideal
                     continue;
                 }
-                // If it is integer, we can either rename to id (risky) or leave as-is; we leave as-is.
                 $results[] = new Log(
                     self::getName(),
                     $table,
@@ -100,9 +93,8 @@ final class EnsureAutoIncrementPrimaryKeyRule implements DatabaseFixRuleInterfac
                 continue;
             }
 
-            // Single-column primary key but not integer: propose adding an integer id only if enabled
             if ($replaceSingleNonIntPrimary) {
-                $plan = $this->planForSingleNonIntegerPrimary($pdo, $table, $pkCol);
+                $plan = $this->planForSingleNonIntegerPrimary($table, $pkCol);
                 $this->emitOrApply($pdo, $results, $table, $plan, $isDry);
             } else {
                 $results[] = new Log(
@@ -122,124 +114,115 @@ final class EnsureAutoIncrementPrimaryKeyRule implements DatabaseFixRuleInterfac
     {
         $idInfo = $this->getColumnInfo($pdo, $table, 'id');
 
-        // Choose a stable ordering if possible
-        $orderCols = $this->guessStableOrdering($pdo, $table); // array of column names, may be empty
+        $orderCols = $this->guessStableOrdering($pdo, $table);
         $orderSql = $this->orderBySql($orderCols);
 
         $steps = [];
         $notes = [];
 
         if ($idInfo === null) {
-            // Add nullable id first
             $steps[] = sprintf("ALTER TABLE `%s` ADD COLUMN `id` INT UNSIGNED NULL", $this->qt($table));
         } elseif (!$this->isIntegerFamily($idInfo['DATA_TYPE'])) {
-            // If an id exists but is not integer, we will overwrite it. Warn and change type to integer.
             $notes[] = "Existing `id` is " . strtoupper($idInfo['COLUMN_TYPE']) . " — will be replaced by integers";
             $steps[] = sprintf("ALTER TABLE `%s` MODIFY COLUMN `id` INT UNSIGNED NULL", $this->qt($table));
         }
 
-        // Backfill sequential values
+        // Backfill
         $steps[] = "SET @row := 0";
         $steps[] = sprintf("UPDATE `%s` SET `id` = (@row := @row + 1)%s", $this->qt($table), $orderSql);
 
-        // Make id not null, set as primary, and enable auto increment
+        // Promote to PK
         $steps[] = sprintf("ALTER TABLE `%s` MODIFY COLUMN `id` INT UNSIGNED NOT NULL", $this->qt($table));
         $steps[] = sprintf("ALTER TABLE `%s` ADD PRIMARY KEY (`id`)", $this->qt($table));
 
-        // Ensure the next inserts continue the sequence
-        $steps[] = sprintf("SET @mx := (SELECT MAX(`id`) FROM `%s`)", $this->qt($table));
-        $steps[] = sprintf("SET @next := IFNULL(@mx, 0) + 1", $this->qt($table));
-        $steps[] = sprintf("ALTER TABLE `%s` MODIFY COLUMN `id` INT UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT = @next", $this->qt($table));
+        // Set AUTO_INCREMENT to MAX(id)+1 (handled in PHP)
+        $steps[] = '__SET_AUTO_INCREMENT_FROM_MAX__';
 
         return [$steps, $notes, 'no primary key → add `id` auto-increment primary key'];
     }
 
-    private function planForCompositePrimaryKey(PDO $pdo, string $table, array $pkCols): array
+    private function planForCompositePrimaryKey(string $table, array $pkCols): array
     {
-        $pkColsSql = implode(', ', array_map(fn($c) => '`' . $this->qt($c) . '`', $pkCols));
-        $uniqName = $this->uniqueName("uniq_{$table}_old_pk");
-
-        // Choose a stable ordering (use the current primary key columns if possible)
-        $orderSql = $this->orderBySql($pkCols);
+        $pkColsSql = implode(', ', array_map(function ($c) { return '`' . $this->qt($c) . '`'; }, $pkCols));
+        $uniqName  = $this->uniqueName("uniq_{$table}_old_pk");
+        $orderSql  = $this->orderBySql($pkCols);
 
         $steps = [];
         $notes = ["current primary key: ($pkColsSql)"];
 
-        // 1) Add nullable id
         $steps[] = sprintf("ALTER TABLE `%s` ADD COLUMN `id` INT UNSIGNED NULL", $this->qt($table));
-
-        // 2) Backfill sequential values using a stable order
         $steps[] = "SET @row := 0";
         $steps[] = sprintf("UPDATE `%s` SET `id` = (@row := @row + 1)%s", $this->qt($table), $orderSql);
-
-        // 3) Preserve the old key as UNIQUE so existing foreign keys remain valid
         $steps[] = sprintf("ALTER TABLE `%s` ADD UNIQUE `%s` (%s)", $this->qt($table), $this->qt($uniqName), $pkColsSql);
-
-        // 4) Switch the primary key to id
         $steps[] = sprintf("ALTER TABLE `%s` DROP PRIMARY KEY", $this->qt($table));
         $steps[] = sprintf("ALTER TABLE `%s` MODIFY COLUMN `id` INT UNSIGNED NOT NULL", $this->qt($table));
         $steps[] = sprintf("ALTER TABLE `%s` ADD PRIMARY KEY (`id`)", $this->qt($table));
-
-        // 5) Enable auto increment and set next value
-        $steps[] = sprintf("SET @mx := (SELECT MAX(`id`) FROM `%s`)", $this->qt($table));
-        $steps[] = sprintf("SET @next := IFNULL(@mx, 0) + 1", $this->qt($table));
-        $steps[] = sprintf("ALTER TABLE `%s` MODIFY COLUMN `id` INT UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT = @next", $this->qt($table));
+        $steps[] = '__SET_AUTO_INCREMENT_FROM_MAX__';
 
         return [$steps, $notes, 'composite primary key → add `id`, keep old key UNIQUE, make `id` primary'];
     }
 
-    private function planForSingleNonIntegerPrimary(PDO $pdo, string $table, string $pkCol): array
+    private function planForSingleNonIntegerPrimary(string $table, string $pkCol): array
     {
         $pkColsSql = '`' . $this->qt($pkCol) . '`';
-        $uniqName = $this->uniqueName("uniq_{$table}_old_pk");
-
-        // Choose a stable ordering by the old primary key
-        $orderSql = $this->orderBySql([$pkCol]);
+        $uniqName  = $this->uniqueName("uniq_{$table}_old_pk");
+        $orderSql  = $this->orderBySql([$pkCol]);
 
         $steps = [];
         $notes = ["current primary key: ($pkColsSql)"];
 
-        // 1) Add nullable id
         $steps[] = sprintf("ALTER TABLE `%s` ADD COLUMN `id` INT UNSIGNED NULL", $this->qt($table));
-
-        // 2) Backfill sequential values
         $steps[] = "SET @row := 0";
         $steps[] = sprintf("UPDATE `%s` SET `id` = (@row := @row + 1)%s", $this->qt($table), $orderSql);
-
-        // 3) Preserve the old key as UNIQUE
         $steps[] = sprintf("ALTER TABLE `%s` ADD UNIQUE `%s` (%s)", $this->qt($table), $this->qt($uniqName), $pkColsSql);
-
-        // 4) Switch the primary key
         $steps[] = sprintf("ALTER TABLE `%s` DROP PRIMARY KEY", $this->qt($table));
         $steps[] = sprintf("ALTER TABLE `%s` MODIFY COLUMN `id` INT UNSIGNED NOT NULL", $this->qt($table));
         $steps[] = sprintf("ALTER TABLE `%s` ADD PRIMARY KEY (`id`)", $this->qt($table));
-
-        // 5) Enable auto increment and set next value
-        $steps[] = sprintf("SET @mx := (SELECT MAX(`id`) FROM `%s`)", $this->qt($table));
-        $steps[] = sprintf("SET @next := IFNULL(@mx, 0) + 1", $this->qt($table));
-        $steps[] = sprintf("ALTER TABLE `%s` MODIFY COLUMN `id` INT UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT = @next", $this->qt($table));
+        $steps[] = '__SET_AUTO_INCREMENT_FROM_MAX__';
 
         return [$steps, $notes, 'single non-integer primary key → add `id`, keep old key UNIQUE, make `id` primary'];
     }
 
     private function emitOrApply(PDO $pdo, array &$results, string $table, array $plan, bool $isDry): void
     {
-        [$steps, $notes, $headline] = $plan;
+        list($steps, $notes, $headline) = $plan;
         $noteStr = $notes ? ' (' . implode('; ', $notes) . ')' : '';
 
         if ($isDry) {
+            // Replace sentinel with a readable description
+            $prettySteps = array_map(function ($s) use ($table) {
+                return $s === '__SET_AUTO_INCREMENT_FROM_MAX__'
+                    ? sprintf("ALTER TABLE `%s` MODIFY COLUMN `id` INT UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT = MAX(id)+1", $this->qt($table))
+                    : $s;
+            }, $steps);
+
             $results[] = new Log(
                 self::getName(),
                 $table,
                 'id',
                 'plan',
-                $headline . $noteStr . ' ; ' . implode('  →  ', $steps)
+                $headline . $noteStr . ' ; ' . implode('  →  ', $prettySteps)
             );
             return;
         }
 
-        // Apply
         foreach ($steps as $sql) {
+            if ($sql === '__SET_AUTO_INCREMENT_FROM_MAX__') {
+                // Compute next auto-increment value in PHP and inject as literal
+                $stmt = $pdo->query(sprintf("SELECT MAX(`id`) FROM `%s`", $this->qt($table)));
+                $max  = (int)$stmt->fetchColumn();
+                $next = $max > 0 ? $max + 1 : 1;
+
+                $final = sprintf(
+                    "ALTER TABLE `%s` MODIFY COLUMN `id` INT UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT = %d",
+                    $this->qt($table),
+                    $next
+                );
+                $pdo->exec($final);
+                $results[] = new Log(self::getName(), $table, 'id', 'executed', $final);
+                continue;
+            }
+
             $pdo->exec($sql);
             $results[] = new Log(self::getName(), $table, 'id', 'executed', $sql);
         }
@@ -328,9 +311,8 @@ final class EnsureAutoIncrementPrimaryKeyRule implements DatabaseFixRuleInterfac
 
     private function guessStableOrdering(PDO $pdo, string $table): array
     {
-        // Prefer current primary key columns, else first UNIQUE index columns, else empty (no ORDER BY)
         $pk = $this->getPrimaryKeyColumns($pdo, $table);
-        if (!empty($pk)) {
+        if ($pk !== []) {
             return $pk;
         }
 
@@ -348,11 +330,12 @@ final class EnsureAutoIncrementPrimaryKeyRule implements DatabaseFixRuleInterfac
         if (!$rows) {
             return [];
         }
-        // pick the first unique index by name
         $firstIndex = $rows[0]['INDEX_NAME'];
         $cols = [];
         foreach ($rows as $r) {
-            if ($r['INDEX_NAME'] !== $firstIndex) break;
+            if ($r['INDEX_NAME'] !== $firstIndex) {
+                break;
+            }
             $cols[] = $r['COLUMN_NAME'];
         }
         return $cols;
@@ -360,16 +343,15 @@ final class EnsureAutoIncrementPrimaryKeyRule implements DatabaseFixRuleInterfac
 
     private function orderBySql(array $cols): string
     {
-        if (empty($cols)) {
+        if ($cols === []) {
             return '';
         }
-        $parts = array_map(fn($c) => '`' . $this->qt($c) . '` ASC', $cols);
+        $parts = array_map(function ($c) { return '`' . $this->qt($c) . '` ASC'; }, $cols);
         return ' ORDER BY ' . implode(', ', $parts);
     }
 
     private function uniqueName(string $base): string
     {
-        // Keep it short to avoid hitting 64-char identifier limits
         $s = preg_replace('/[^a-zA-Z0-9_]/', '_', $base);
         return substr($s, 0, 55) . '_' . substr(md5($base), 0, 8);
     }

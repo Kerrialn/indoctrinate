@@ -46,7 +46,7 @@ final class MissingForeignKeyRowsRule implements DatabaseFixRuleInterface
                     to: (string) $missingId
                 );
 
-                if (!$dryRun) {
+                if (! $dryRun) {
                     $this->insertStubRow($pdo, $fk['referenced_table_name'], $fk['referenced_column_name'], $missingId);
                 }
             }
@@ -72,7 +72,7 @@ WHERE
 SQL;
 
         return array_map(
-            fn(array $row) => array_change_key_case($row, CASE_LOWER),
+            fn(array $row): array => array_change_key_case($row, CASE_LOWER),
             $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC)
         );
     }
@@ -97,6 +97,8 @@ SQL;
     {
         $sql = "INSERT IGNORE INTO {$table} (`{$pkColumn}`) VALUES (:id)";
         $stmt = $pdo->prepare($sql);
-        $stmt->execute(['id' => $id]);
+        $stmt->execute([
+            'id' => $id,
+        ]);
     }
 }

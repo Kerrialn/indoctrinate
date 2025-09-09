@@ -1,5 +1,9 @@
 {
-  "name": "kerrialn/db-fixer",
+  "name": "kerrialn/indoctrinate",
+  "bin": [
+    "bin/indoctrinate"
+  ],
+  "description": "An automated package helps you align your database with Doctrine or simply fix database issues.",
   "autoload": {
     "psr-4": {
       "DbFixer\\": "src/"
@@ -29,9 +33,12 @@
     "nikic/php-parser": "^5.4",
     "symfony/finder": "^7.2",
     "symfony/filesystem": "^7.3",
-    "nette/utils": "^4.0"
+    "nette/utils": "^4.0",
+    "ext-pdo": "*"
   },
   "require-dev": {
-    "phpunit/phpunit": "^12"
+    "phpunit/phpunit": "^12",
+    "rector/rector": "^2.1",
+    "symplify/easy-coding-standard": "^12.5"
   }
 }

@@ -1,0 +1,28 @@
+#!/usr/bin/env php
+<?php
+
+use DbFixer\Command\DatabaseAnalyzerCommand;
+use Symfony\Component\Console\Application;
+
+$autoloadPaths = [
+        __DIR__ . '/../vendor/autoload.php',
+        __DIR__ . '/../../../autoload.php',
+];
+
+foreach ($autoloadPaths as $path) {
+    if (!file_exists($path)) {
+        continue;
+    }
+
+    require $path;
+    break;
+}
+
+if (!class_exists(DatabaseAnalyzerCommand::class)) {
+    fwrite(STDERR, "Autoload failed. Did you run `composer install`?\n");
+    exit(1);
+}
+
+$application = new Application();
+$application->add(new DatabaseAnalyzerCommand());
+$application->run();

@@ -28,8 +28,8 @@ final class EnsurePrimaryKeyUuidRule implements DatabaseFixRuleInterface
     {
         $results = [];
 
-        $preferUuid = (bool)($context['prefer_uuid'] ?? true);
-        $forceSurrogateOnJoins = (bool)($context['force_surrogate_on_joins'] ?? false);
+        $preferUuid = (bool) ($context['prefer_uuid'] ?? true);
+        $forceSurrogateOnJoins = (bool) ($context['force_surrogate_on_joins'] ?? false);
 
         // All base tables
         $tables = $pdo->query("
@@ -97,7 +97,7 @@ final class EnsurePrimaryKeyUuidRule implements DatabaseFixRuleInterface
             GROUP BY k.REFERENCED_TABLE_NAME
         ");
         foreach ($childStmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-            $childForeignKeyCountByTable[$r['parent_table']] = (int)$r['child_fk_count'];
+            $childForeignKeyCountByTable[$r['parent_table']] = (int) $r['child_fk_count'];
         }
 
         $output->writeln(sprintf('  • tables without primary key: %d', \count($noPrimaryKeyTables)));
@@ -120,7 +120,7 @@ final class EnsurePrimaryKeyUuidRule implements DatabaseFixRuleInterface
             $current = strtoupper($idInfo['COLUMN_TYPE']) . ($idInfo['IS_NULLABLE'] === 'NO' ? ' NOT NULL' : ' NULL');
 
             if ($preferUuid) {
-                if (!$this->isChar36($idInfo['COLUMN_TYPE'])) {
+                if (! $this->isChar36($idInfo['COLUMN_TYPE'])) {
                     $results[] = new Log(
                         self::getName(),
                         $table,
@@ -139,25 +139,23 @@ final class EnsurePrimaryKeyUuidRule implements DatabaseFixRuleInterface
                 } else {
                     $results[] = new Log(self::getName(), $table, 'id', 'no primary key', "ADD PRIMARY KEY (`id`); affects {$affects} child tables");
                 }
+            } elseif (preg_match('/^(?:int|bigint)\b/i', $idInfo['DATA_TYPE']) && $idInfo['IS_NULLABLE'] === 'NO') {
+                $results[] = new Log(self::getName(), $table, 'id', $current, "ADD PRIMARY KEY (`id`); affects {$affects} child tables");
             } else {
-                if (preg_match('/^(?:int|bigint)\b/i', $idInfo['DATA_TYPE']) && $idInfo['IS_NULLABLE'] === 'NO') {
-                    $results[] = new Log(self::getName(), $table, 'id', $current, "ADD PRIMARY KEY (`id`); affects {$affects} child tables");
-                } else {
-                    $results[] = new Log(
-                        self::getName(),
-                        $table,
-                        'id',
-                        $current,
-                        "CHANGE `id` to BIGINT UNSIGNED NOT NULL AUTO_INCREMENT; ADD PRIMARY KEY (`id`); affects {$affects} child tables"
-                    );
-                }
+                $results[] = new Log(
+                    self::getName(),
+                    $table,
+                    'id',
+                    $current,
+                    "CHANGE `id` to BIGINT UNSIGNED NOT NULL AUTO_INCREMENT; ADD PRIMARY KEY (`id`); affects {$affects} child tables"
+                );
             }
         }
 
         // Suggestions for tables with composite primary keys
         foreach ($compositePrimaryKeyTables as $table) {
             // Skip pure join tables unless explicitly forced
-            if (!$forceSurrogateOnJoins && $this->isPureJoinTable($pdo, $table)) {
+            if (! $forceSurrogateOnJoins && $this->isPureJoinTable($pdo, $table)) {
                 $results[] = new Log(
                     self::getName(),
                     $table,
@@ -170,7 +168,7 @@ final class EnsurePrimaryKeyUuidRule implements DatabaseFixRuleInterface
 
             $affects = $childForeignKeyCountByTable[$table] ?? 0;
             $prevCols = $primaryKeyColumnsByTable[$table] ?? [];
-            $prevColsSql = implode(', ', array_map(fn($c) => "`$c`", $prevCols)) ?: '(unknown)';
+            $prevColsSql = implode(', ', array_map(fn($c): string => "`$c`", $prevCols)) ?: '(unknown)';
 
             $target = $preferUuid
                 ? "ADD COLUMN `id` CHAR(36) NOT NULL; populate with UUIDs; DROP current PRIMARY KEY; ADD PRIMARY KEY (`id`); ADD UNIQUE ({$prevColsSql}); affects {$affects} child tables"
@@ -180,7 +178,7 @@ final class EnsurePrimaryKeyUuidRule implements DatabaseFixRuleInterface
         }
 
         // Optional preview
-        if (!empty($results) && ($context['debug'] ?? false)) {
+        if ($results !== [] && ($context['debug'] ?? false)) {
             foreach (array_slice($results, 0, 5) as $log) {
                 $output->writeln(sprintf(
                     '  → %s.%s: %s => %s',
@@ -205,7 +203,9 @@ final class EnsurePrimaryKeyUuidRule implements DatabaseFixRuleInterface
               AND COLUMN_NAME = 'id'
             LIMIT 1
         ");
-        $stmt->execute([':t' => $table]);
+        $stmt->execute([
+            ':t' => $table,
+        ]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
     }
@@ -224,7 +224,9 @@ final class EnsurePrimaryKeyUuidRule implements DatabaseFixRuleInterface
               AND c.CONSTRAINT_TYPE='PRIMARY KEY'
             ORDER BY k.ORDINAL_POSITION
         ");
-        $stmt->execute([':t' => $table]);
+        $stmt->execute([
+            ':t' => $table,
+        ]);
         return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'COLUMN_NAME');
     }
 
@@ -237,7 +239,9 @@ final class EnsurePrimaryKeyUuidRule implements DatabaseFixRuleInterface
               AND k.TABLE_NAME = :t
               AND k.REFERENCED_TABLE_NAME IS NOT NULL
         ");
-        $stmt->execute([':t' => $table]);
+        $stmt->execute([
+            ':t' => $table,
+        ]);
         return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'COLUMN_NAME');
     }
 
@@ -249,7 +253,9 @@ final class EnsurePrimaryKeyUuidRule implements DatabaseFixRuleInterface
             WHERE TABLE_SCHEMA = DATABASE()
               AND TABLE_NAME = :t
         ");
-        $stmt->execute([':t' => $table]);
+        $stmt->execute([
+            ':t' => $table,
+        ]);
         return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'COLUMN_NAME');
     }
 
@@ -275,6 +281,6 @@ final class EnsurePrimaryKeyUuidRule implements DatabaseFixRuleInterface
 
     private function isChar36(string $columnType): bool
     {
-        return (bool)preg_match('/^char\s*\(\s*36\s*\)/i', trim($columnType));
+        return (bool) preg_match('/^char\s*\(\s*36\s*\)/i', trim($columnType));
     }
 }

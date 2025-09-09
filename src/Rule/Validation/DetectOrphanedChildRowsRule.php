@@ -54,7 +54,7 @@ SQL;
                     rule: self::getName(),
                     table: $table,
                     column: $column,
-                    from: (string)$id,
+                    from: (string) $id,
                     to: 'ORPHAN (no match)'
                 );
             }
@@ -79,7 +79,7 @@ WHERE
 SQL;
 
         return array_map(
-            fn(array $row) => array_change_key_case($row, CASE_LOWER),
+            fn(array $row): array => array_change_key_case($row, CASE_LOWER),
             $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC)
         );
     }
