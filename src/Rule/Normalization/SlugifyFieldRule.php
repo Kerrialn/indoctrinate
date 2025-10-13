@@ -5,6 +5,7 @@ namespace Indoctrinate\Rule\Normalization;
 
 use Indoctrinate\Log\Log;
 use Indoctrinate\Rule\Contract\RuleInterface;
+use Indoctrinate\Rule\Normalization\Constraint\SlugifyFieldRuleConstraints;
 use PDO;
 use RuntimeException;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -373,5 +374,11 @@ final class SlugifyFieldRule implements RuleInterface
     private function qt(string $ident): string
     {
         return str_replace('`', '``', $ident);
+    }
+
+
+    public static function getConstraintClass(): ?string
+    {
+        return SlugifyFieldRuleConstraints::class;
     }
 }

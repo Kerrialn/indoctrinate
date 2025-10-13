@@ -10,29 +10,32 @@ use Indoctrinate\Set\EnsurePrimaryKeyUuidSet;
 return static function (IndoctrinateConfig $config): void {
 
     $config->connection(
-        driver: 'mysql',
-        host: '127.0.0.1',
-        port: 4406,
-        dbname: 'NETWORK_SITE_DEV_DB_V1',
-        user: 'root',
-        password: '12345678',
+        'mysql',
+        '127.0.0.1',
+        4406,
+        'NETWORK_SITE_DEV_DB_V1',
+        'root',
+        '12345678',
     );
 
     $config->sets([
         EnsurePrimaryKeyUuidSet::class => [
             EnsurePrimaryKeyUuidRule::class => new EnsurePrimaryKeyUuidRuleConstraints(
-                onlyTables: ['default_adverts'],
-                onlyTableLike: [],
-                skipTables: [],
-                skipTableLike: [],
-                cascade: true,
-                debug: true
+                ['default_adverts'],
+                [],
+                [],
+                [],
+                true,
+                true
             ),
             EnsureUnifiedPrimaryKeyNameRule::class => new EnsureUnifiedPrimaryKeyNameRuleConstraints(
-                onlyTables: ['default_adverts'],
-                targetName: 'id',
-                rebuildChildFks: true,
-                debug: true
+                ['default_adverts'],
+                [],
+                [],
+                ['%session%', '%sessions%', '%tmp%', '%temp%', '%cache%'],
+                'id',
+                true,
+                true
             ),
         ]
     ]);

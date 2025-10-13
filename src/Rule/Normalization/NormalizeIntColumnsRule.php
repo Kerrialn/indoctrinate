@@ -224,4 +224,9 @@ final class NormalizeIntColumnsRule implements RuleInterface
         }
         return $out;
     }
+
+    public static function getConstraintClass(): ?string
+    {
+        return null;
+    }
 }

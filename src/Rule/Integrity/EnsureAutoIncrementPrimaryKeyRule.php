@@ -4,6 +4,8 @@ namespace Indoctrinate\Rule\Integrity;
 
 use Indoctrinate\Log\Log;
 use Indoctrinate\Rule\Contract\RuleInterface;
+use Indoctrinate\Rule\Integrity\Constraint\EnsureAutoIncrementPrimaryKeyRuleConstraints;
+use Indoctrinate\Rule\Normalization\Constraint\SlugifyFieldRuleConstraints;
 use PDO;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -362,5 +364,10 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
     private function qt(string $ident): string
     {
         return str_replace('`', '``', $ident);
+    }
+
+    public static function getConstraintClass(): ?string
+    {
+        return EnsureAutoIncrementPrimaryKeyRuleConstraints::class;
     }
 }

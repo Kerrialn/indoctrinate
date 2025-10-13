@@ -287,4 +287,9 @@ final class ClassifyDateStorageAcrossSchemaRule implements RuleInterface
         }
         return $q;
     }
+
+    public static function getConstraintClass(): ?string
+    {
+        return null;
+    }
 }

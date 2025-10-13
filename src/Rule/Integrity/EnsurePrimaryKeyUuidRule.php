@@ -25,7 +25,7 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
         return 'Integrity';
     }
 
-    public static function getConstraintClass(): string
+    public static function getConstraintClass(): ?string
     {
         return EnsurePrimaryKeyUuidRuleConstraints::class;
     }
@@ -919,6 +919,8 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
             }
         }
     }
+
+
 
 
 }

@@ -4,6 +4,7 @@ namespace Indoctrinate\Rule\Integrity;
 
 use Indoctrinate\Log\Log;
 use Indoctrinate\Rule\Contract\RuleInterface;
+use Indoctrinate\Rule\Integrity\Constraint\EnsurePrimaryKeyUuidRuleConstraints;
 use PDO;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -189,5 +190,10 @@ final class EnsureTransactionalEnginesRule implements RuleInterface
             $out[$r['TABLE_NAME']] = true;
         }
         return $out;
+    }
+
+    public static function getConstraintClass(): ?string
+    {
+        return null;
     }
 }

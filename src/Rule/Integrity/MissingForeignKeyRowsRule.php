@@ -4,6 +4,7 @@ namespace Indoctrinate\Rule\Integrity;
 
 use Indoctrinate\Log\Log;
 use Indoctrinate\Rule\Contract\RuleInterface;
+use Indoctrinate\Rule\Integrity\Constraint\EnsureUnifiedPrimaryKeyNameRuleConstraints;
 use PDO;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -105,5 +106,10 @@ SQL;
         $stmt->execute([
             'id' => $id,
         ]);
+    }
+
+    public static function getConstraintClass(): ?string
+    {
+        return null;
     }
 }

@@ -87,4 +87,9 @@ SQL;
             $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC)
         );
     }
+
+    public static function getConstraintClass(): ?string
+    {
+        return null;
+    }
 }

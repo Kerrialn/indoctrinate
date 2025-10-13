@@ -303,4 +303,5 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
     {
         return str_replace('`', '``', $ident);
     }
+
 }

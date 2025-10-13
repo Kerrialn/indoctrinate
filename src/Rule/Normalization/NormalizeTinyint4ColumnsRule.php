@@ -41,4 +41,9 @@ final class NormalizeTinyint4ColumnsRule implements RuleInterface
         var_dump($columns);
         exit();
     }
+
+    public static function getConstraintClass(): ?string
+    {
+        return null;
+    }
 }
