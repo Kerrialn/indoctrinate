@@ -8,8 +8,6 @@ use Indoctrinate\Config\IndoctrinateConfig;
 use Indoctrinate\Rule\Contract\RuleInterface;
 use Indoctrinate\Rule\Contract\RuleConstraintInterface;
 use Indoctrinate\Set\Contract\SetInterface;
-use PDO;
-use PDOException;
 use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
