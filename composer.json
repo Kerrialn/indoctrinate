@@ -23,7 +23,7 @@
     "symfony/console": "^5.4",
     "symfony/finder": "^5.4",
     "symfony/filesystem": "^5.4",
-    "nikic/php-parser": "^5.4",
+    "nikic/php-parser": "^4.19.4",
     "nette/utils": "^3.2",
     "ext-pdo": "*"
   },
