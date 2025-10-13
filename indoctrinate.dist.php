@@ -1,19 +1,19 @@
 <?php
 
-use DbFixer\Config\DbFixerConfig;
-use DbFixer\Rule\Discovery\ClassifyDateStorageAcrossSchemaRule;
-use DbFixer\Rule\Integrity\Constraint\EnsureAutoIncrementPrimaryKeyRuleConstraints;
-use DbFixer\Rule\Integrity\EnsureAutoIncrementPrimaryKeyRule;
-use DbFixer\Rule\Integrity\EnsurePrimaryKeyUuidRule;
-use DbFixer\Rule\Integrity\EnsureTransactionalEnginesRule;
-use DbFixer\Rule\Integrity\MissingForeignKeyRowsRule;
-use DbFixer\Rule\Normalization\NormalizeIntColumnsRule;
-use DbFixer\Rule\Normalization\NormalizeTinyint4ColumnsRule;
-use DbFixer\Rule\Validation\DetectOrphanedChildRowsRule;
+use Indoctrinate\Config\IndoctrinateConfig;
+use Indoctrinate\Rule\Discovery\ClassifyDateStorageAcrossSchemaRule;
+use Indoctrinate\Rule\Integrity\Constraint\EnsureAutoIncrementPrimaryKeyRuleConstraints;
+use Indoctrinate\Rule\Integrity\EnsureAutoIncrementPrimaryKeyRule;
+use Indoctrinate\Rule\Integrity\EnsurePrimaryKeyUuidRule;
+use Indoctrinate\Rule\Integrity\EnsureTransactionalEnginesRule;
+use Indoctrinate\Rule\Integrity\MissingForeignKeyRowsRule;
+use Indoctrinate\Rule\Normalization\NormalizeIntColumnsRule;
+use Indoctrinate\Rule\Normalization\NormalizeTinyint4ColumnsRule;
+use Indoctrinate\Rule\Validation\DetectOrphanedChildRowsRule;
 
-return static function (DbFixerConfig $config): void {
+return static function (IndoctrinateConfig $config): void {
 
-    $config->connection(
+    $config->setConnectionCredentials(
         driver: 'mysql',
         host: '127.0.0.1',
         port: 4406,

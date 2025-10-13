@@ -1,18 +1,21 @@
 <?php
 
-namespace DbFixer\Rule\Contract;
+namespace Indoctrinate\Rule\Contract;
 
-use DbFixer\Log\Log;
+use Indoctrinate\Log\Log;
 use PDO;
 use Symfony\Component\Console\Output\OutputInterface;
 
-interface DatabaseFixRuleInterface
+interface RuleInterface
 {
     public static function getName(): string;
+    public static function getDescription(): string;
 
     public static function getCategory(): string;
 
     public static function isDestructive(): bool;
+
+    public static function getConstraintClass(): null|string;
 
     /**
      * @return array<int, Log>

@@ -1,6 +1,6 @@
 <?php
 
-namespace DbFixer\Log;
+namespace Indoctrinate\Log;
 
 use Nette\Utils\Strings;
 

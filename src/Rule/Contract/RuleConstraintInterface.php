@@ -1,6 +1,6 @@
 <?php
 
-namespace DbFixer\Rule\Contract;
+namespace Indoctrinate\Rule\Contract;
 
 interface RuleConstraintInterface
 {

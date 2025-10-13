@@ -1,17 +1,22 @@
 <?php
 
-namespace DbFixer\Rule\Normalization;
+namespace Indoctrinate\Rule\Normalization;
 
-use DbFixer\Log\Log;
-use DbFixer\Rule\Contract\DatabaseFixRuleInterface;
+use Indoctrinate\Log\Log;
+use Indoctrinate\Rule\Contract\RuleInterface;
 use PDO;
 use Symfony\Component\Console\Output\OutputInterface;
 
-final class NormalizeIntColumnsRule implements DatabaseFixRuleInterface
+final class NormalizeIntColumnsRule implements RuleInterface
 {
     public static function getName(): string
     {
         return 'normalize_int_columns';
+    }
+
+    public static function getDescription(): string
+    {
+        return 'ensures that INT columns are normalized';
     }
 
     public static function getCategory(): string

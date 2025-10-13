@@ -1,17 +1,22 @@
 <?php
 
-namespace DbFixer\Rule\Integrity;
+namespace Indoctrinate\Rule\Integrity;
 
-use DbFixer\Log\Log;
-use DbFixer\Rule\Contract\DatabaseFixRuleInterface;
+use Indoctrinate\Log\Log;
+use Indoctrinate\Rule\Contract\RuleInterface;
 use PDO;
 use Symfony\Component\Console\Output\OutputInterface;
 
-final class EnsureTransactionalEnginesRule implements DatabaseFixRuleInterface
+final class EnsureTransactionalEnginesRule implements RuleInterface
 {
     public static function getName(): string
     {
         return 'ensure_transactional_engines';
+    }
+
+    public static function getDescription(): string
+    {
+        return 'ensures that tables use InnoDB with a safe row format';
     }
 
     public static function getCategory(): string

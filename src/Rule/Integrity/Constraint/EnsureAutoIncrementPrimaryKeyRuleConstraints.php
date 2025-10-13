@@ -1,8 +1,8 @@
 <?php
 
-namespace DbFixer\Rule\Integrity\Constraint;
+namespace Indoctrinate\Rule\Integrity\Constraint;
 
-use DbFixer\Rule\Contract\RuleConstraintInterface;
+use Indoctrinate\Rule\Contract\RuleConstraintInterface;
 use InvalidArgumentException;
 
 final class EnsureAutoIncrementPrimaryKeyRuleConstraints implements RuleConstraintInterface

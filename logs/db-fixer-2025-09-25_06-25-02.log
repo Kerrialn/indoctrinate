@@ -1,0 +1,5 @@
+[START] DB Fix started at 2025-09-25 06:25:02
+Running set: primary_key_uuid_set — Switch primary keys to UUID (keeping data safe) and then unify the PK column name to `id`.
+[ensure primary key uuid] default_adverts.id: int/bigint PK → converted to UUID PRIMARY KEY (kept name id)
+Findings: 1
+[END] DB Fix completed at 2025-09-25 06:25:02

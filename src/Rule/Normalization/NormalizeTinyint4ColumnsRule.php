@@ -1,16 +1,21 @@
 <?php
 
-namespace DbFixer\Rule\Normalization;
+namespace Indoctrinate\Rule\Normalization;
 
-use DbFixer\Rule\Contract\DatabaseFixRuleInterface;
+use Indoctrinate\Rule\Contract\RuleInterface;
 use PDO;
 use Symfony\Component\Console\Output\OutputInterface;
 
-final class NormalizeTinyint4ColumnsRule implements DatabaseFixRuleInterface
+final class NormalizeTinyint4ColumnsRule implements RuleInterface
 {
     public static function getName(): string
     {
         return 'normalize_tinyint4_columns';
+    }
+
+    public static function getDescription(): string
+    {
+        return 'ensures that TINYINT(4) columns are normalized';
     }
 
     public static function getCategory(): string

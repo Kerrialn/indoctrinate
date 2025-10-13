@@ -1,17 +1,22 @@
 <?php
 
-namespace DbFixer\Rule\Discovery;
+namespace Indoctrinate\Rule\Discovery;
 
-use DbFixer\Log\Log;
-use DbFixer\Rule\Contract\DatabaseFixRuleInterface;
+use Indoctrinate\Log\Log;
+use Indoctrinate\Rule\Contract\RuleInterface;
 use PDO;
 use Symfony\Component\Console\Output\OutputInterface;
 
-final class ClassifyDateStorageAcrossSchemaRule implements DatabaseFixRuleInterface
+final class ClassifyDateStorageAcrossSchemaRule implements RuleInterface
 {
     public static function getName(): string
     {
         return 'classify_date_storage_across_schema';
+    }
+
+    public static function getDescription(): string
+    {
+        return 'classifies date storage across all tables in a schema';
     }
 
     public static function getCategory(): string

@@ -1,7 +1,7 @@
 #!/usr/bin/env php
 <?php
 
-use DbFixer\Command\DatabaseAnalyzerCommand;
+use Indoctrinate\Command\DatabaseAnalyzerCommand;
 use Symfony\Component\Console\Application;
 
 $autoloadPaths = [

@@ -1,17 +1,22 @@
 <?php
 
-namespace DbFixer\Rule\Integrity;
+namespace Indoctrinate\Rule\Integrity;
 
-use DbFixer\Log\Log;
-use DbFixer\Rule\Contract\DatabaseFixRuleInterface;
+use Indoctrinate\Log\Log;
+use Indoctrinate\Rule\Contract\RuleInterface;
 use PDO;
 use Symfony\Component\Console\Output\OutputInterface;
 
-final class EnsureAutoIncrementPrimaryKeyRule implements DatabaseFixRuleInterface
+final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
 {
     public static function getName(): string
     {
         return 'ensure_auto_increment_primary_key';
+    }
+
+    public static function getDescription(): string
+    {
+        return 'ensures that tables have an int auto-increment primary key';
     }
 
     public static function getCategory(): string

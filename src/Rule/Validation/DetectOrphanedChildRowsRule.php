@@ -1,19 +1,23 @@
 <?php
 
-namespace DbFixer\Rule\Validation;
+namespace Indoctrinate\Rule\Validation;
 
-use DbFixer\Log\Log;
-use DbFixer\Rule\Contract\DatabaseFixRuleInterface;
+use Indoctrinate\Log\Log;
+use Indoctrinate\Rule\Contract\RuleInterface;
 use PDO;
 use Symfony\Component\Console\Output\OutputInterface;
 
-final class DetectOrphanedChildRowsRule implements DatabaseFixRuleInterface
+final class DetectOrphanedChildRowsRule implements RuleInterface
 {
     public static function getName(): string
     {
         return 'detect_orphaned_child_rows';
     }
 
+    public static function getDescription(): string
+    {
+        return 'detects orphaned child rows';
+    }
     public static function getCategory(): string
     {
         return 'Validation';

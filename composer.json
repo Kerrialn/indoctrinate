@@ -6,12 +6,12 @@
   "description": "An automated package helps you align your database with Doctrine or simply fix database issues.",
   "autoload": {
     "psr-4": {
-      "DbFixer\\": "src/"
+      "Indoctrinate\\": "src/"
     }
   },
   "autoload-dev": {
     "psr-4": {
-      "DbFixerTest\\": "tests/"
+      "IndoctrinateTest\\": "tests/"
     }
   },
   "scripts": {

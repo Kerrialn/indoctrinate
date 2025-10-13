@@ -1,10 +1,13 @@
 <?php
 
-namespace DbFixer\Command;
+namespace Indoctrinate\Command;
 
-use DbFixer\Config\DbFixerConfig;
-use DbFixer\Rule\Contract\DatabaseFixRuleInterface;
-use DbFixer\Rule\Contract\RuleConstraintInterface;
+use Indoctrinate\Config\ConnectionCredentials;
+use Indoctrinate\Config\Context;
+use Indoctrinate\Config\IndoctrinateConfig;
+use Indoctrinate\Rule\Contract\RuleInterface;
+use Indoctrinate\Rule\Contract\RuleConstraintInterface;
+use Indoctrinate\Set\Contract\SetInterface;
 use PDO;
 use PDOException;
 use RuntimeException;
@@ -20,7 +23,7 @@ use Symfony\Component\Filesystem\Filesystem;
 #[AsCommand(name: 'fix')]
 class DatabaseAnalyzerCommand extends Command
 {
-    /** @var DbFixerConfig|null */
+    /** @var IndoctrinateConfig|null */
     private $config = null;
 
     /** @var bool */
@@ -30,7 +33,7 @@ class DatabaseAnalyzerCommand extends Command
     {
         $this
             ->setDescription('Analyzes & fixes issues in database configuration')
-            ->addOption('dry', null, InputOption::VALUE_OPTIONAL, 'Analyze without fixes')
+            ->addOption('dry', null, InputOption::VALUE_NONE, 'Analyze without fixes')
             ->addOption('log', null, InputOption::VALUE_OPTIONAL, 'Log output to file')
             ->addOption('prod', null, InputOption::VALUE_NONE, 'Prod mode (override connection from indoctrinate.php)')
             ->addOption('dsn', null, InputOption::VALUE_REQUIRED, 'DSN, e.g. mysql://user:pass@host:3306/db')
@@ -44,16 +47,17 @@ class DatabaseAnalyzerCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $io         = new SymfonyStyle($input, $output);
-        $isDry      = (bool)$input->getOption('dry');
-        $logDir     = $input->getOption('log');
-        $isProd     = (bool)$input->getOption('prod');
-        $logHandle  = null;
-        $logPath    = null;
+        $io = new SymfonyStyle($input, $output);
+        $isDry = (bool)$input->getOption('dry');
+        $logDir = $input->getOption('log');
+        $isProd = (bool)$input->getOption('prod');
+        $logHandle = null;
+        $logPath = null;
         $filesystem = new Filesystem();
+        $dsn = (string)($input->getOption('dsn') ?? '');
 
         $configFilePath = getcwd() . '/indoctrinate.php';
-        $distFilePath   = getcwd() . '/indoctrinate.dist.php';
+        $distFilePath = getcwd() . '/indoctrinate.dist.php';
 
         // Ensure config file exists (and STOP if we just created it)
         $ensureStatus = $this->ensureConfigurationFile($filesystem, $io, $configFilePath, $distFilePath, $isProd);
@@ -65,41 +69,42 @@ class DatabaseAnalyzerCommand extends Command
             return Command::SUCCESS;
         }
 
-        $this->config = new DbFixerConfig();
 
-        // Load rules (and maybe default connection) from indoctrinate.php
+        // inside execute()
+
+// Load config
+        $this->config = new IndoctrinateConfig();
+        $context = new Context(isDry: $isDry, isProd: $isProd, logDir: $logDir, configFilePath: $configFilePath, dsn: $dsn);
+        $this->config->setContext($context);
+
         $loader = require $configFilePath;
         if (!is_callable($loader)) {
-            $io->error("File $configFilePath must return a callable that accepts DbFixerConfig.");
+            $io->error("File $configFilePath must return a callable that accepts IndoctrinateConfig.");
             return Command::FAILURE;
         }
         $loader($this->config);
 
-        // Prod mode: override connection details via CLI flags
-        if ($isProd) {
-            $creds = $this->resolveProdCredentials($input, $io);
-            if ($creds === null) {
-                return Command::INVALID;
-            }
-            $this->config->connection(
-                $creds['driver'],
-                $creds['host'],
-                $creds['port'],
-                $creds['dbname'],
-                $creds['user'],
-                $creds['password']
-            );
+        $credentials = $isProd
+            ? $this->resolveCredentials($input, $this->config)
+            : ($this->config->getConnectionCredentials()
+                ?? throw new RuntimeException(
+                    'No connection configured. Add $config->connection(...) in indoctrinate.php or run with --prod and --dsn/--db-* flags.'
+                ));
+
+        if ($isProd && $this->config->getConnectionCredentials() !== null) {
+            $io->note('Prod mode: ignoring credentials defined in indoctrinate.php.');
         }
 
-        // Optional logfile
+        $this->config->setConnectionCredentials($credentials);
+
         if (!empty($logDir)) {
             try {
                 if (!$filesystem->exists($logDir)) {
                     $filesystem->mkdir($logDir);
                 }
-                $timestamp   = date('Y-m-d_H-i-s');
+                $timestamp = date('Y-m-d_H-i-s');
                 $logFilename = "db-fixer-{$timestamp}.log";
-                $logPath     = rtrim($logDir, '/\\') . DIRECTORY_SEPARATOR . $logFilename;
+                $logPath = rtrim($logDir, '/\\') . DIRECTORY_SEPARATOR . $logFilename;
 
                 $logHandle = fopen($logPath, 'a');
                 if (!$logHandle) {
@@ -114,13 +119,13 @@ class DatabaseAnalyzerCommand extends Command
 
         // Connect
         try {
-            $pdo = new PDO(
+            $pdo = new \PDO(
                 $this->config->getDsn(),
-                $this->config->getUser(),
-                $this->config->getPassword(),
-                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+                $credentials->getUser(),
+                $credentials->getPassword(),
+                [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
             );
-        } catch (PDOException $e) {
+        } catch (\PDOException $e) {
             $io->error("Could not connect to database: " . $e->getMessage());
             return Command::FAILURE;
         }
@@ -128,23 +133,87 @@ class DatabaseAnalyzerCommand extends Command
         $io->success("Connected to database.");
         $io->newLine();
 
-        // Load rule definitions
-        if (method_exists($this->config, 'getRuleDefinitions')) {
-            /** @var array<int, array{class:string, constraints:?RuleConstraintInterface}> $ruleDefs */
-            $ruleDefs = $this->config->getRuleDefinitions();
-        } else {
-            $ruleDefs = array_map(function (string $class): array {
-                return ['class' => $class, 'constraints' => null];
-            }, $this->config->getRules());
-        }
+        // ===================== RUN SETS (with per-rule constraints) ==================
+        $sets = $this->config->getSets();
 
-        if (empty($ruleDefs)) {
+        if (!empty($sets)) {
+            foreach ($sets as $class => $rulesConfiguration) {
+
+                if (!is_string($class) || !class_exists($class)) {
+                    $msg = "Set class not found: {$class}";
+                    $io->warning($msg);
+                    $this->logMessage($logHandle, $msg);
+                    continue;
+                }
+
+                /** @var SetInterface $set */
+                $set = new $class();
+                if (!$set instanceof SetInterface) {
+                    $msg = "Set {$class} must implement SetInterface.";
+                    $io->warning($msg);
+                    $this->logMessage($logHandle, $msg);
+                    continue;
+                }
+
+                $title = "Running set: " . $set->getName() . " — " . $set->getDescription();
+                $io->section($title);
+                $this->logMessage($logHandle, $title);
+
+                $set->config(is_array($rulesConfiguration) ? $rulesConfiguration : []);
+
+                // Pass your map straight through; the set will pick constraints by Rule FQCN.
+                $setContext = [
+                    'dry' => $this->config->getContext()->isDry(),
+                ];
+
+                try {
+                    $logs = $set->execute($pdo, $io, $setContext);
+                    $issueCount = is_array($logs) ? count($logs) : 0;
+
+                    if ($issueCount === 0) {
+                        $io->success("✔ {$class}" . ($isDry ? ' (dry run)' : ''));
+                        $this->logMessage($logHandle, "No findings from set {$class}");
+                    } else {
+                        foreach ($logs as $log) {
+                            $msg = $log->getMessage();
+                            $this->logMessage($logHandle, $msg);
+                            $io->warning($msg);
+                        }
+                        $io->note("Findings: {$issueCount}");
+                        $this->logMessage($logHandle, "Findings: {$issueCount}");
+                    }
+                } catch (\Throwable $e) {
+                    $error = "Exception during set {$class}: " . $e->getMessage();
+                    $io->error($error);
+                    $this->logMessage($logHandle, "✘ {$class} failed: " . $e->getMessage());
+                }
+
+                $io->writeln(str_repeat('-', 80));
+            }
+            $io->newLine(2);
+        } else {
+            $io->note('No sets registered.');
+        }
+        // =============================================================================
+
+        /** @var array<int, array{class:string, RuleConstraintInterface}> $rules */
+        $rules = $this->config->getRules();
+
+        if (empty($rules)) {
             $io->warning("No rules registered.");
+            if ($logHandle) {
+                fwrite($logHandle, "[END] DB Fix completed at " . date('Y-m-d H:i:s') . PHP_EOL);
+                fclose($logHandle);
+                if ($logPath) {
+                    $io->note("Log written to: $logPath");
+                }
+            }
+            $io->success("All rules executed.");
             return Command::SUCCESS;
         }
 
-        foreach ($ruleDefs as $def) {
-            $ruleClass      = $def['class'];
+        foreach ($rules as $def) {
+            $ruleClass = $def['class'];
             $constraintsObj = isset($def['constraints']) ? $def['constraints'] : null;
 
             if (!class_exists($ruleClass)) {
@@ -154,9 +223,10 @@ class DatabaseAnalyzerCommand extends Command
                 continue;
             }
 
+            /** @var RuleInterface $rule */
             $rule = new $ruleClass();
-            if (!$rule instanceof DatabaseFixRuleInterface) {
-                $msg = "Rule {$ruleClass} does not implement DatabaseFixRuleInterface.";
+            if (!$rule instanceof RuleInterface) {
+                $msg = "Rule {$ruleClass} does not implement RuleInterface.";
                 $io->warning($msg);
                 $this->logMessage($logHandle, $msg);
                 continue;
@@ -167,7 +237,7 @@ class DatabaseAnalyzerCommand extends Command
             $this->logMessage($logHandle, $title);
 
             $ruleContext = ($constraintsObj instanceof RuleConstraintInterface) ? $constraintsObj->toContext() : [];
-            $context     = array_merge($ruleContext, ['dry' => $isDry]);
+            $context = array_merge($ruleContext, ['dry' => $isDry]);
 
             $useTransaction = !$ruleClass::isDestructive() && !$isDry;
 
@@ -277,51 +347,85 @@ class DatabaseAnalyzerCommand extends Command
         }
     }
 
-    private function resolveProdCredentials(InputInterface $input, SymfonyStyle $io): ?array
+    private function resolveCredentials(InputInterface $input, IndoctrinateConfig $config): ConnectionCredentials
     {
-        $dsn = $input->getOption('dsn');
-        if ($dsn) {
-            $parts = parse_url((string)$dsn);
-            if ($parts === false) {
-                $io->error('Invalid --dsn (expected scheme://user:pass@host:port/dbname)');
-                return null;
+        if (!$config->getContext()->isProd()) {
+            $connectionCredentials = $config->getConnectionCredentials();
+            if (!$connectionCredentials instanceof ConnectionCredentials) {
+                throw new RuntimeException(
+                    'No connection configured. Add $config->connection(...) in indoctrinate.php or use --prod.'
+                );
             }
-            return [
-                'driver'   => rtrim($parts['scheme'] ?? 'mysql', ':/'),
-                'host'     => $parts['host'] ?? '127.0.0.1',
-                'port'     => isset($parts['port']) ? (int)$parts['port'] : 3306,
-                'dbname'   => ltrim($parts['path'] ?? '', '/'),
-                'user'     => $parts['user'] ?? '',
-                'password' => $parts['pass'] ?? '',
-            ];
+            return $connectionCredentials;
         }
 
-        $host = $input->getOption('db-host');
-        $name = $input->getOption('db-name');
-        $user = $input->getOption('db-user');
+        if (!empty($config->getContext()->getDsn())) {
+            return $this->credentialsFromDsn($config->getContext()->getDsn());
+        }
 
-        if (!$host || !$name || !$user) {
-            $io->error('In --prod, provide --dsn OR --db-host --db-name --db-user [--db-pass|--db-pass-file] [--db-port].');
-            return null;
+        // Discrete options
+        $host = (string)($input->getOption('db-host') ?? null);
+        $name = (string)($input->getOption('db-name') ?? null);
+        $user = (string)($input->getOption('db-user') ?? null);
+
+        if (empty($host) || empty($name) || empty($user)) {
+            throw new \InvalidArgumentException(
+                'In --prod, provide --dsn OR --db-host --db-name --db-user [--db-pass|--db-pass-file] [--db-port].'
+            );
         }
 
         $passFile = $input->getOption('db-pass-file');
-        $pass     = (string)$input->getOption('db-pass');
+        $pass = (string)($input->getOption('db-pass') ?? '');
+
         if ($passFile) {
             if (!is_readable($passFile)) {
-                $io->error('Cannot read --db-pass-file');
-                return null;
+                throw new RuntimeException('Cannot read --db-pass-file');
             }
-            $pass = trim((string)file_get_contents($passFile));
+            $contents = @file_get_contents($passFile);
+            if ($contents === false) {
+                throw new RuntimeException('Failed to read --db-pass-file');
+            }
+            $pass = trim($contents);
         }
 
-        return [
-            'driver'   => 'mysql',
-            'host'     => (string)$host,
-            'port'     => (int)($input->getOption('db-port') ?: 3306),
-            'dbname'   => (string)$name,
-            'user'     => (string)$user,
-            'password' => $pass,
-        ];
+        $port = (string)($input->getOption('db-port') ?: '3306');
+
+        return new ConnectionCredentials(
+            driver: 'mysql',
+            host: $host,
+            port: $port,
+            database: $name,
+            user: $user,
+            password: $pass
+        );
     }
+
+    private function credentialsFromDsn(string $dsn): ConnectionCredentials
+    {
+        $parts = parse_url($dsn);
+        if ($parts === false) {
+            throw new \InvalidArgumentException('Invalid --dsn (expected scheme://user:pass@host:port/database)');
+        }
+
+        $driver = rtrim((string)($parts['scheme'] ?? 'mysql'), ':/');
+        $host = (string)($parts['host'] ?? '127.0.0.1');
+        $port = (string)($parts['port'] ?? '3306');
+        $database = ltrim((string)($parts['path'] ?? ''), '/');
+        $user = isset($parts['user']) ? urldecode((string)$parts['user']) : '';
+        $pass = isset($parts['pass']) ? urldecode((string)$parts['pass']) : '';
+
+        if ($database === '') {
+            throw new \InvalidArgumentException('Missing database name in --dsn (…/database at the end)');
+        }
+
+        return new ConnectionCredentials(
+            driver: $driver,
+            host: $host,
+            port: $port,
+            database: $database,
+            user: $user,
+            password: $pass
+        );
+    }
+
 }

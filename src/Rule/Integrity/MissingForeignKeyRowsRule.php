@@ -1,17 +1,22 @@
 <?php
 
-namespace DbFixer\Rule\Integrity;
+namespace Indoctrinate\Rule\Integrity;
 
-use DbFixer\Log\Log;
-use DbFixer\Rule\Contract\DatabaseFixRuleInterface;
+use Indoctrinate\Log\Log;
+use Indoctrinate\Rule\Contract\RuleInterface;
 use PDO;
 use Symfony\Component\Console\Output\OutputInterface;
 
-final class MissingForeignKeyRowsRule implements DatabaseFixRuleInterface
+final class MissingForeignKeyRowsRule implements RuleInterface
 {
     public static function getName(): string
     {
         return 'fix_missing_foreign_key_rows';
+    }
+
+    public static function getDescription(): string
+    {
+        return 'ensures that foreign key constraints are not violated by inserting a stub row';
     }
 
     public static function getCategory(): string
