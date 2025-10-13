@@ -10,7 +10,7 @@
     "psr-4": { "IndoctrinateTest\\": "tests/" }
   },
   "require": {
-    "php": ">=8.1",
+    "php": "^7.4",
     "symfony/console": "^5.4 || ^6.4 || ^7.2",
     "symfony/finder": "^5.4 || ^6.4 || ^7.2",
     "symfony/filesystem": "^5.4 || ^6.4 || ^7.2",
