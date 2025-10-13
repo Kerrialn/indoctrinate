@@ -18,15 +18,11 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Exception\IOExceptionInterface;
 use Symfony\Component\Filesystem\Filesystem;
 
-#[AsCommand(name: 'fix')]
 class DatabaseAnalyzerCommand extends Command
 {
-    /** @var IndoctrinateConfig|null */
-    private $config = null;
-
-    /** @var bool */
-    private $configJustCreated = false;
-
+    protected static $defaultName = 'fix';
+    private ?IndoctrinateConfig $config = null;
+    private bool $configJustCreated = false;
     protected function configure(): void
     {
         $this
@@ -42,7 +38,6 @@ class DatabaseAnalyzerCommand extends Command
             ->addOption('db-pass', null, InputOption::VALUE_OPTIONAL, 'DB password (prefer --db-pass-file)')
             ->addOption('db-pass-file', null, InputOption::VALUE_OPTIONAL, 'Path to file containing DB password');
     }
-
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
@@ -72,7 +67,7 @@ class DatabaseAnalyzerCommand extends Command
 
 // Load config
         $this->config = new IndoctrinateConfig();
-        $context = new Context(isDry: $isDry, isProd: $isProd, logDir: $logDir, configFilePath: $configFilePath, dsn: $dsn);
+        $context = new Context($isDry, $isProd, $logDir, $configFilePath, $dsn);
         $this->config->setContext($context);
 
         $loader = require $configFilePath;
@@ -81,15 +76,17 @@ class DatabaseAnalyzerCommand extends Command
             return Command::FAILURE;
         }
         $loader($this->config);
+        if ($this->config->getConnectionCredentials() === null) {
+            throw new RuntimeException(
+                'No connection configured. Add $config->connection(...) in indoctrinate.php or run with --prod and --dsn/--db-* flags.'
+            );
+        }
 
         $credentials = $isProd
             ? $this->resolveCredentials($input, $this->config)
-            : ($this->config->getConnectionCredentials()
-                ?? throw new RuntimeException(
-                    'No connection configured. Add $config->connection(...) in indoctrinate.php or run with --prod and --dsn/--db-* flags.'
-                ));
+            : ($this->config->getConnectionCredentials());
 
-        if ($isProd && $this->config->getConnectionCredentials() !== null) {
+        if ($isProd && $this->config->getConnectionCredentials() instanceof \Indoctrinate\Config\ConnectionCredentials) {
             $io->note('Prod mode: ignoring credentials defined in indoctrinate.php.');
         }
 
@@ -134,7 +131,7 @@ class DatabaseAnalyzerCommand extends Command
         // ===================== RUN SETS (with per-rule constraints) ==================
         $sets = $this->config->getSets();
 
-        if (!empty($sets)) {
+        if ($sets !== []) {
             foreach ($sets as $class => $rulesConfiguration) {
 
                 if (!is_string($class) || !class_exists($class)) {
@@ -212,7 +209,7 @@ class DatabaseAnalyzerCommand extends Command
 
         foreach ($rules as $def) {
             $ruleClass = $def['class'];
-            $constraintsObj = isset($def['constraints']) ? $def['constraints'] : null;
+            $constraintsObj = $def['constraints'] ?? null;
 
             if (!class_exists($ruleClass)) {
                 $msg = "Rule class not found: {$ruleClass}";
@@ -295,7 +292,6 @@ class DatabaseAnalyzerCommand extends Command
         $io->success("All rules executed.");
         return Command::SUCCESS;
     }
-
     /**
      * Ensure indoctrinate.php exists. If we create it now, set $this->configJustCreated=true
      * and return SUCCESS so the caller can exit early.
@@ -334,7 +330,6 @@ class DatabaseAnalyzerCommand extends Command
             return Command::FAILURE;
         }
     }
-
     /**
      * @param resource|null $logHandle
      */
@@ -344,7 +339,6 @@ class DatabaseAnalyzerCommand extends Command
             fwrite($logHandle, $message . PHP_EOL);
         }
     }
-
     private function resolveCredentials(InputInterface $input, IndoctrinateConfig $config): ConnectionCredentials
     {
         if (!$config->getContext()->isProd()) {
@@ -357,7 +351,7 @@ class DatabaseAnalyzerCommand extends Command
             return $connectionCredentials;
         }
 
-        if (!empty($config->getContext()->getDsn())) {
+        if (!in_array($config->getContext()->getDsn(), [null, '', '0'], true)) {
             return $this->credentialsFromDsn($config->getContext()->getDsn());
         }
 
@@ -366,7 +360,7 @@ class DatabaseAnalyzerCommand extends Command
         $name = (string)($input->getOption('db-name') ?? null);
         $user = (string)($input->getOption('db-user') ?? null);
 
-        if (empty($host) || empty($name) || empty($user)) {
+        if ($host === '' || $host === '0' || ($name === '' || $name === '0') || ($user === '' || $user === '0')) {
             throw new \InvalidArgumentException(
                 'In --prod, provide --dsn OR --db-host --db-name --db-user [--db-pass|--db-pass-file] [--db-port].'
             );
@@ -389,15 +383,14 @@ class DatabaseAnalyzerCommand extends Command
         $port = (string)($input->getOption('db-port') ?: '3306');
 
         return new ConnectionCredentials(
-            driver: 'mysql',
-            host: $host,
-            port: $port,
-            database: $name,
-            user: $user,
-            password: $pass
+            'mysql',
+            $host,
+            $port,
+            $name,
+            $user,
+            $pass
         );
     }
-
     private function credentialsFromDsn(string $dsn): ConnectionCredentials
     {
         $parts = parse_url($dsn);
@@ -409,21 +402,20 @@ class DatabaseAnalyzerCommand extends Command
         $host = (string)($parts['host'] ?? '127.0.0.1');
         $port = (string)($parts['port'] ?? '3306');
         $database = ltrim((string)($parts['path'] ?? ''), '/');
-        $user = isset($parts['user']) ? urldecode((string)$parts['user']) : '';
-        $pass = isset($parts['pass']) ? urldecode((string)$parts['pass']) : '';
+        $user = isset($parts['user']) ? urldecode($parts['user']) : '';
+        $pass = isset($parts['pass']) ? urldecode($parts['pass']) : '';
 
         if ($database === '') {
             throw new \InvalidArgumentException('Missing database name in --dsn (…/database at the end)');
         }
 
         return new ConnectionCredentials(
-            driver: $driver,
-            host: $host,
-            port: $port,
-            database: $database,
-            user: $user,
-            password: $pass
+            $driver,
+            $host,
+            $port,
+            $database,
+            $user,
+            $pass
         );
     }
-
 }

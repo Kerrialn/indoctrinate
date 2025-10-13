@@ -4,16 +4,35 @@ namespace Indoctrinate\Log;
 
 use Nette\Utils\Strings;
 
-final readonly class Log
+final class Log
 {
-    public function __construct(
-        private string $rule,
-        private string $table,
-        private string $column,
-        private string $from,
-        private string $to,
-    )
+    /**
+     * @readonly
+     */
+    private string $rule;
+    /**
+     * @readonly
+     */
+    private string $table;
+    /**
+     * @readonly
+     */
+    private string $column;
+    /**
+     * @readonly
+     */
+    private string $from;
+    /**
+     * @readonly
+     */
+    private string $to;
+    public function __construct(string $rule, string $table, string $column, string $from, string $to)
     {
+        $this->rule = $rule;
+        $this->table = $table;
+        $this->column = $column;
+        $this->from = $from;
+        $this->to = $to;
     }
 
     public function getRule(): string

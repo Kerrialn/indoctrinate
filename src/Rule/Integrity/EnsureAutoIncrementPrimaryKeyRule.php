@@ -148,7 +148,7 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
 
     private function planForCompositePrimaryKey(string $table, array $pkCols): array
     {
-        $pkColsSql = implode(', ', array_map(function ($c) { return '`' . $this->qt($c) . '`'; }, $pkCols));
+        $pkColsSql = implode(', ', array_map(fn($c) => '`' . $this->qt($c) . '`', $pkCols));
         $uniqName  = $this->uniqueName("uniq_{$table}_old_pk");
         $orderSql  = $this->orderBySql($pkCols);
 
@@ -190,16 +190,14 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
 
     private function emitOrApply(PDO $pdo, array &$results, string $table, array $plan, bool $isDry): void
     {
-        list($steps, $notes, $headline) = $plan;
+        [$steps, $notes, $headline] = $plan;
         $noteStr = $notes ? ' (' . implode('; ', $notes) . ')' : '';
 
         if ($isDry) {
             // Replace sentinel with a readable description
-            $prettySteps = array_map(function ($s) use ($table) {
-                return $s === '__SET_AUTO_INCREMENT_FROM_MAX__'
-                    ? sprintf("ALTER TABLE `%s` MODIFY COLUMN `id` INT UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT = MAX(id)+1", $this->qt($table))
-                    : $s;
-            }, $steps);
+            $prettySteps = array_map(fn($s) => $s === '__SET_AUTO_INCREMENT_FROM_MAX__'
+                ? sprintf("ALTER TABLE `%s` MODIFY COLUMN `id` INT UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT = MAX(id)+1", $this->qt($table))
+                : $s, $steps);
 
             $results[] = new Log(
                 self::getName(),
@@ -351,7 +349,7 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
         if ($cols === []) {
             return '';
         }
-        $parts = array_map(function ($c) { return '`' . $this->qt($c) . '` ASC'; }, $cols);
+        $parts = array_map(fn($c) => '`' . $this->qt($c) . '` ASC', $cols);
         return ' ORDER BY ' . implode(', ', $parts);
     }
 

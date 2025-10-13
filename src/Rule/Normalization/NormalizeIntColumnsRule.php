@@ -178,12 +178,12 @@ final class NormalizeIntColumnsRule implements RuleInterface
 
     private function hasUnsigned(string $columnType): bool
     {
-        return str_contains($columnType, 'unsigned');
+        return strpos($columnType, 'unsigned') !== false;
     }
 
     private function hasZerofill(string $columnType): bool
     {
-        return str_contains($columnType, 'zerofill');
+        return strpos($columnType, 'zerofill') !== false;
     }
 
     private function getDisplayWidth(string $columnType): ?int

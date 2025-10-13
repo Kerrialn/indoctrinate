@@ -176,15 +176,29 @@ final class ClassifyDateStorageAcrossSchemaRule implements RuleInterface
             // Pull a few sample values
             $samples = [];
             if ($topCount > 0) {
-                $regex = match ($topClass) {
-                    'unix_seconds' => '^[0-9]{10}$',
-                    'unix_millis' => '^[0-9]{13}$',
-                    'mysql_datetime' => '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$',
-                    'mysql_date' => '^[0-9]{4}-[0-9]{2}-[0-9]{2}$',
-                    'iso8601' => '^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}(:[0-9]{2})?([.][0-9]+)?([Zz]|[+-][0-9]{2}(:?[0-9]{2})?)$',
-                    'ddmmyyyy' => '^[0-9]{2}/[0-9]{2}/[0-9]{4}$',
-                    default => null
-                };
+                switch ($topClass) {
+                    case 'unix_seconds':
+                        $regex = '^[0-9]{10}$';
+                        break;
+                    case 'unix_millis':
+                        $regex = '^[0-9]{13}$';
+                        break;
+                    case 'mysql_datetime':
+                        $regex = '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$';
+                        break;
+                    case 'mysql_date':
+                        $regex = '^[0-9]{4}-[0-9]{2}-[0-9]{2}$';
+                        break;
+                    case 'iso8601':
+                        $regex = '^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}(:[0-9]{2})?([.][0-9]+)?([Zz]|[+-][0-9]{2}(:?[0-9]{2})?)$';
+                        break;
+                    case 'ddmmyyyy':
+                        $regex = '^[0-9]{2}/[0-9]{2}/[0-9]{4}$';
+                        break;
+                    default:
+                        $regex = null;
+                        break;
+                }
                 if ($regex) {
                     $sampleSql = sprintf(
                         "SELECT DISTINCT %s AS v FROM `%s`

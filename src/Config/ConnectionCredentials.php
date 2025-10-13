@@ -2,17 +2,40 @@
 
 namespace Indoctrinate\Config;
 
-final readonly class ConnectionCredentials
+final class ConnectionCredentials
 {
-    public function __construct(
-        private string $driver,
-        private string $host,
-        private int $port,
-        private string $database,
-        private string $user,
-        private string $password
-    )
+    /**
+     * @readonly
+     */
+    private string $driver;
+    /**
+     * @readonly
+     */
+    private string $host;
+    /**
+     * @readonly
+     */
+    private int $port;
+    /**
+     * @readonly
+     */
+    private string $database;
+    /**
+     * @readonly
+     */
+    private string $user;
+    /**
+     * @readonly
+     */
+    private string $password;
+    public function __construct(string $driver, string $host, int $port, string $database, string $user, string $password)
     {
+        $this->driver = $driver;
+        $this->host = $host;
+        $this->port = $port;
+        $this->database = $database;
+        $this->user = $user;
+        $this->password = $password;
     }
 
     public function getDriver(): string

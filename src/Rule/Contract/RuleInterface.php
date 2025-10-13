@@ -15,7 +15,7 @@ interface RuleInterface
 
     public static function isDestructive(): bool;
 
-    public static function getConstraintClass(): null|string;
+    public static function getConstraintClass(): ?string;
 
     /**
      * @return array<int, Log>

@@ -5,23 +5,56 @@ namespace Indoctrinate\Rule\Integrity\Constraint;
 
 use Indoctrinate\Rule\Contract\RuleConstraintInterface;
 
-final readonly class EnsureUnifiedPrimaryKeyNameRuleConstraints implements RuleConstraintInterface
+final class EnsureUnifiedPrimaryKeyNameRuleConstraints implements RuleConstraintInterface
 {
+    /**
+     * @var string[]
+     * @readonly
+     */
+    public array $onlyTables = [];
+    /**
+     * @var string[]
+     * @readonly
+     */
+    public array $onlyTableLike = [];
+    /**
+     * @var string[]
+     * @readonly
+     */
+    public array $skipTables = [];
+    /**
+     * @var string[]
+     * @readonly
+     */
+    public array $skipTableLike = ['%session%', '%sessions%', '%tmp%', '%temp%', '%cache%'];
+    /**
+     * @readonly
+     */
+    public string $targetName = 'id';
+    /**
+     * @readonly
+     */
+    public bool $rebuildChildFks = false;
+    /**
+     * @readonly
+     */
+    public bool $debug = false;
     /**
      * @param string[] $onlyTables
      * @param string[] $onlyTableLike
      * @param string[] $skipTables
      * @param string[] $skipTableLike
      */
-    public function __construct(
-        public array  $onlyTables = [],
-        public array  $onlyTableLike = [],
-        public array  $skipTables = [],
-        public array  $skipTableLike = ['%session%', '%sessions%', '%tmp%', '%temp%', '%cache%'],
-        public string $targetName = 'id',
-        public bool   $rebuildChildFks = false,
-        public bool   $debug = false,
-    ) {}
+    public function __construct(array  $onlyTables = [], array  $onlyTableLike = [], array  $skipTables = [], array  $skipTableLike = ['%session%', '%sessions%', '%tmp%', '%temp%', '%cache%'], string $targetName = 'id', bool   $rebuildChildFks = false, bool   $debug = false)
+    {
+        $this->onlyTables = $onlyTables;
+        $this->onlyTableLike = $onlyTableLike;
+        $this->skipTables = $skipTables;
+        $this->skipTableLike = $skipTableLike;
+        $this->targetName = $targetName;
+        $this->rebuildChildFks = $rebuildChildFks;
+        $this->debug = $debug;
+    }
 
     public function toContext(): array
     {

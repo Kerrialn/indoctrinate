@@ -2,16 +2,37 @@
 
 namespace Indoctrinate\Config;
 
-final readonly class Context
+final class Context
 {
-    public function __construct(
-        private bool $isDry = false,
-        private bool $isProd = false,
-        private string $logDir = '',
-        private string $configFilePath = '',
-        private null|string $dsn = null,
-    )
+    /**
+     * @readonly
+     */
+    private bool $isDry = false;
+    /**
+     * @readonly
+     */
+    private bool $isProd = false;
+    /**
+     * @readonly
+     */
+    private ?string $logDir = null;
+    /**
+     * @readonly
+     */
+    private string $configFilePath = '';
+    /**
+     * @readonly
+     * @var string|null
+     */
+    private $dsn = null;
+
+    public function __construct(bool $isDry = false, bool $isProd = false, ?string $logDir = null, string $configFilePath = '', ?string $dsn = null)
     {
+        $this->isDry = $isDry;
+        $this->isProd = $isProd;
+        $this->logDir = $logDir;
+        $this->configFilePath = $configFilePath;
+        $this->dsn = $dsn;
     }
 
     public function isDry(): bool
@@ -34,7 +55,7 @@ final readonly class Context
         return $this->configFilePath;
     }
 
-    public function getDsn(): null|string
+    public function getDsn(): ?string
     {
         return $this->dsn;
     }

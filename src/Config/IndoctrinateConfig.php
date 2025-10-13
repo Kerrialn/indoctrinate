@@ -37,17 +37,17 @@ final class IndoctrinateConfig
         int    $port,
         string $dbname,
         string $user,
-        string $password,
+        string $password
     ): self
     {
         // Cast port to string to satisfy ConnectionCredentials
         $this->credentials = new ConnectionCredentials(
-            driver: $driver,
-            host: $host,
-            port: $port,
-            database: $dbname,
-            user: $user,
-            password: $password
+            $driver,
+            $host,
+            $port,
+            $dbname,
+            $user,
+            $password
         );
         return $this;
     }
@@ -60,7 +60,7 @@ final class IndoctrinateConfig
 
     public function getDsn(): string
     {
-        if ($this->credentials === null) {
+        if (!$this->credentials instanceof \Indoctrinate\Config\ConnectionCredentials) {
             throw new \RuntimeException('No connection configured.');
         }
         return sprintf(
@@ -119,13 +119,17 @@ final class IndoctrinateConfig
         return $this->rules;
     }
 
-    private function assertRulePair(mixed $ruleClass, mixed $constraint): void
+    /**
+     * @param mixed $ruleClass
+     * @param mixed $constraint
+     */
+    private function assertRulePair($ruleClass, $constraint): void
     {
         if (!is_string($ruleClass) || !class_exists($ruleClass) || !is_subclass_of($ruleClass, RuleInterface::class)) {
             throw new InvalidArgumentException("Rule '{$ruleClass}' must implement RuleInterface.");
         }
         if ($constraint !== null && !($constraint instanceof RuleConstraintInterface)) {
-            $t = is_object($constraint) ? get_class($constraint) : gettype($constraint);
+            $t = get_debug_type($constraint);
             throw new InvalidArgumentException("Constraint for '{$ruleClass}' must be RuleConstraintInterface|null, got {$t}.");
         }
     }

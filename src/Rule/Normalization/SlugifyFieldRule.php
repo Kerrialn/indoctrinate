@@ -68,10 +68,13 @@ final class SlugifyFieldRule implements RuleInterface
                 $results[] = new Log(self::getName(), $table, $dst, "added column VARCHAR($len)", 'OK');
             }
         }
+        // single-column PK required
+        if ($this->detectSingleColumnPrimaryKey($pdo, $table) === null) {
+            throw new RuntimeException("Table `$table` must have a single-column PRIMARY KEY.");
+        }
 
         // single-column PK required
-        $pk = $this->detectSingleColumnPrimaryKey($pdo, $table)
-            ?? throw new RuntimeException("Table `$table` must have a single-column PRIMARY KEY.");
+        $pk = $this->detectSingleColumnPrimaryKey($pdo, $table);
 
         // WRITE #2: index creation (guarded)
         if ($createIndex) {
@@ -138,7 +141,9 @@ final class SlugifyFieldRule implements RuleInterface
             $select->execute();
 
             $rows = $select->fetchAll(PDO::FETCH_ASSOC);
-            if (!$rows) break;
+            if (!$rows) {
+                break;
+            }
 
             foreach ($rows as $r) {
                 $id  = $r['id'];
@@ -227,18 +232,23 @@ final class SlugifyFieldRule implements RuleInterface
 
         if (\class_exists(\Transliterator::class)) {
             $t = \Transliterator::create('Any-Latin; Latin-ASCII; [:Nonspacing Mark:] Remove; [:Punctuation:] Remove;');
-            if ($t) $s = $t->transliterate($s) ?? $s;
+            if ($t) {
+                $s = $t->transliterate($s) ?? $s;
+            }
         } elseif (\function_exists('iconv')) {
             $i = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s);
-            if ($i !== false) $s = $i;
+            if ($i !== false) {
+                $s = $i;
+            }
         }
 
         $s = preg_replace('~[^\\pL\\pN]+~u', $sep, $s) ?? '';
         $s = trim($s, $sep);
         $s = preg_replace('~[^-a-zA-Z0-9_]+~', '', $s) ?? '';
-        if ($lower) $s = strtolower($s);
-        $s = preg_replace('~-+~', '-', $s) ?? '';
-        return $s;
+        if ($lower) {
+            $s = strtolower($s);
+        }
+        return preg_replace('~-+~', '-', $s) ?? '';
     }
 
     private function trimToLength(string $slug, int $len): string
@@ -308,7 +318,9 @@ final class SlugifyFieldRule implements RuleInterface
         foreach ($rows as $r) {
             if (strcasecmp((string)($r['Column_name'] ?? ''), $col) === 0) {
                 if ($unique) {
-                    if ((int)($r['Non_unique'] ?? 1) === 0) return true;
+                    if ((int)($r['Non_unique'] ?? 1) === 0) {
+                        return true;
+                    }
                 } else {
                     return true;
                 }

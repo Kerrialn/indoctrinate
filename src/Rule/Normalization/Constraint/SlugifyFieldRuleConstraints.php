@@ -6,24 +6,74 @@ namespace Indoctrinate\Rule\Normalization\Constraint;
 use Indoctrinate\Rule\Contract\RuleConstraintInterface;
 use InvalidArgumentException;
 
-final readonly class SlugifyFieldRuleConstraints implements RuleConstraintInterface
+final class SlugifyFieldRuleConstraints implements RuleConstraintInterface
 {
+    /**
+     * @readonly
+     */
+    public string $table;
+    /**
+     * @readonly
+     */
+    public string $sourceField;
+    /**
+     * @readonly
+     */
+    public string $targetField;
+    /**
+     * @readonly
+     */
+    public int $targetLength = 191;
+    /**
+     * @readonly
+     */
+    public bool $lowercase = true;
+    /**
+     * @readonly
+     */
+    public string $separator = '-';
+    /**
+     * @readonly
+     */
+    public bool $overwriteExisting = false;
+    /**
+     * @readonly
+     */
+    public bool $createIndex = true;
+    /**
+     * @readonly
+     */
+    public bool $unique = true;
+    /**
+     * @readonly
+     */
+    public int $batchSize = 1000;
     public function __construct(
-        public string $table,
-        public string $sourceField,
-        public string $targetField,
-        public int    $targetLength = 191,
-        public bool   $lowercase = true,
-        public string $separator = '-',
-        public bool   $overwriteExisting = false,
-        public bool   $createIndex = true,
-        public bool   $unique = true,
-        public int    $batchSize = 1000,
+        string $table,
+        string $sourceField,
+        string $targetField,
+        int    $targetLength = 191,
+        bool   $lowercase = true,
+        string $separator = '-',
+        bool   $overwriteExisting = false,
+        bool   $createIndex = true,
+        bool   $unique = true,
+        int    $batchSize = 1000
     ) {
-        self::assertNonEmptyString('table', $this->table);
-        self::assertNonEmptyString('sourceField', $this->sourceField);
-        self::assertNonEmptyString('targetField', $this->targetField);
-        self::assertNonEmptyString('separator', $this->separator);
+        $this->table = $table;
+        $this->sourceField = $sourceField;
+        $this->targetField = $targetField;
+        $this->targetLength = $targetLength;
+        $this->lowercase = $lowercase;
+        $this->separator = $separator;
+        $this->overwriteExisting = $overwriteExisting;
+        $this->createIndex = $createIndex;
+        $this->unique = $unique;
+        $this->batchSize = $batchSize;
+        $this->assertNonEmptyString('table', $this->table);
+        $this->assertNonEmptyString('sourceField', $this->sourceField);
+        $this->assertNonEmptyString('targetField', $this->targetField);
+        $this->assertNonEmptyString('separator', $this->separator);
 
         if ($this->targetLength < 1) {
             throw new InvalidArgumentException('targetLength must be >= 1');
@@ -54,7 +104,7 @@ final readonly class SlugifyFieldRuleConstraints implements RuleConstraintInterf
         ];
     }
 
-    private static function assertNonEmptyString(string $name, string $value): void
+    private function assertNonEmptyString(string $name, string $value): void
     {
         if ($value === '') {
             throw new InvalidArgumentException("$name must be a non-empty string");

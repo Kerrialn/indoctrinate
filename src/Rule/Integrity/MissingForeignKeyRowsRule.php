@@ -44,11 +44,11 @@ final class MissingForeignKeyRowsRule implements RuleInterface
 
             foreach ($missingIds as $missingId) {
                 $logs[] = new Log(
-                    rule: self::getName(),
-                    table: $fk['referenced_table_name'],
-                    column: $fk['referenced_column_name'],
-                    from: 'MISSING ID',
-                    to: (string) $missingId
+                    self::getName(),
+                    $fk['referenced_table_name'],
+                    $fk['referenced_column_name'],
+                    'MISSING ID',
+                    (string) $missingId
                 );
 
                 if (! $dryRun) {

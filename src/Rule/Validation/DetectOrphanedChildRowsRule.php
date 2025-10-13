@@ -55,11 +55,11 @@ SQL;
 
             foreach ($orphans as $id) {
                 $logs[] = new Log(
-                    rule: self::getName(),
-                    table: $table,
-                    column: $column,
-                    from: (string) $id,
-                    to: 'ORPHAN (no match)'
+                    self::getName(),
+                    $table,
+                    $column,
+                    (string) $id,
+                    'ORPHAN (no match)'
                 );
             }
         }

@@ -15,7 +15,7 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
         return 'ensure_unified_primary_key_name';
     }
 
-    public static function getConstraintClass(): null|string
+    public static function getConstraintClass(): ?string
     {
         return EnsureUnifiedPrimaryKeyNameRuleConstraints::class;
     }

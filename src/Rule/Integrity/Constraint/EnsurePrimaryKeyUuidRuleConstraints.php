@@ -6,8 +6,36 @@ namespace Indoctrinate\Rule\Integrity\Constraint;
 use Indoctrinate\Rule\Contract\RuleConstraintInterface;
 use InvalidArgumentException;
 
-final readonly class EnsurePrimaryKeyUuidRuleConstraints implements RuleConstraintInterface
+final class EnsurePrimaryKeyUuidRuleConstraints implements RuleConstraintInterface
 {
+    /**
+     * @var string[]
+     * @readonly
+     */
+    public array $onlyTables = [];
+    /**
+     * @var string[]
+     * @readonly
+     */
+    public array $onlyTableLike = [];
+    /**
+     * @var string[]
+     * @readonly
+     */
+    public array $skipTables = [];
+    /**
+     * @var string[]
+     * @readonly
+     */
+    public array $skipTableLike = ['%session%', '%sessions%', '%tmp%', '%temp%', '%cache%'];
+    /**
+     * @readonly
+     */
+    public bool $cascade = false;
+    /**
+     * @readonly
+     */
+    public bool $debug = false;
     /**
      * @param string[] $onlyTables
      * @param string[] $onlyTableLike
@@ -15,13 +43,19 @@ final readonly class EnsurePrimaryKeyUuidRuleConstraints implements RuleConstrai
      * @param string[] $skipTableLike
      */
     public function __construct(
-        public array $onlyTables = [],
-        public array $onlyTableLike = [],
-        public array $skipTables = [],
-        public array $skipTableLike = ['%session%', '%sessions%', '%tmp%', '%temp%', '%cache%'],
-        public bool  $cascade = false,   // <— NEW: perform coordinated migration across children
-        public bool  $debug = false,
+        array $onlyTables = [],
+        array $onlyTableLike = [],
+        array $skipTables = [],
+        array $skipTableLike = ['%session%', '%sessions%', '%tmp%', '%temp%', '%cache%'],
+        bool  $cascade = false,   bool  $debug = false
     ) {
+        $this->onlyTables = $onlyTables;
+        $this->onlyTableLike = $onlyTableLike;
+        $this->skipTables = $skipTables;
+        $this->skipTableLike = $skipTableLike;
+        $this->cascade = $cascade;
+        // <— NEW: perform coordinated migration across children
+        $this->debug = $debug;
         foreach ([$this->onlyTables, $this->onlyTableLike, $this->skipTables, $this->skipTableLike] as $arr) {
             foreach ($arr as $v) {
                 if (!is_string($v) || $v === '') {
