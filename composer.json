@@ -1,5 +1,6 @@
 {
   "name": "kerrialn/indoctrinate",
+  "license": "MIT",
   "bin": [
     "bin/indoctrinate"
   ],
