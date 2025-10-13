@@ -189,7 +189,6 @@ class DatabaseAnalyzerCommand extends Command
         } else {
             $io->note('No sets registered.');
         }
-        // =============================================================================
 
         /** @var array<int, array{class:string, RuleConstraintInterface}> $rules */
         $rules = $this->config->getRules();
@@ -207,12 +206,52 @@ class DatabaseAnalyzerCommand extends Command
             return Command::SUCCESS;
         }
 
-        foreach ($rules as $def) {
-            $ruleClass = $def['class'];
-            $constraintsObj = $def['constraints'] ?? null;
+        foreach ($rules as $key => $def) {
+            $ruleClass       = null;
+            $constraintsObj  = null;
+            $inlineContext   = [];
 
-            if (!class_exists($ruleClass)) {
-                $msg = "Rule class not found: {$ruleClass}";
+            // 1) Plain string: RuleClass::class
+            if (is_string($def) && class_exists($def)) {
+                $ruleClass = $def;
+
+                // 2) Map form: RuleClass::class => ConstraintObj
+            } elseif ($def instanceof RuleConstraintInterface && is_string($key) && class_exists($key)) {
+                $ruleClass      = $key;
+                $constraintsObj = $def;
+
+                // 3) Array forms
+            } elseif (is_array($def)) {
+                // 3a) ['class' => FQCN, 'constraints' => obj] (optional 'context' => array)
+                if (isset($def['class']) && is_string($def['class'])) {
+                    $ruleClass = $def['class'];
+                    if (isset($def['constraints']) && $def['constraints'] instanceof RuleConstraintInterface) {
+                        $constraintsObj = $def['constraints'];
+                    }
+                    if (isset($def['context']) && is_array($def['context'])) {
+                        $inlineContext = $def['context'];
+                    }
+                    // 3b) [FQCN, constraintsOrContext]
+                } elseif (isset($def[0]) && is_string($def[0])) {
+                    $ruleClass = $def[0];
+                    if (isset($def[1]) && $def[1] instanceof RuleConstraintInterface) {
+                        $constraintsObj = $def[1];
+                    } elseif (isset($def[1]) && is_array($def[1])) {
+                        $inlineContext = $def[1];
+                    }
+                    // 3c) Map form: RuleClass::class => ['…context…']
+                } elseif (is_string($key) && class_exists($key)) {
+                    $ruleClass     = $key;
+                    $inlineContext = $def;
+                }
+
+                // 4) Map form: RuleClass::class => true/null (enable with no constraints)
+            } elseif (is_string($key) && class_exists($key)) {
+                $ruleClass = $key;
+            }
+
+            if (!$ruleClass || !class_exists($ruleClass)) {
+                $msg = 'Unrecognized rule spec; skipping.';
                 $io->warning($msg);
                 $this->logMessage($logHandle, $msg);
                 continue;
@@ -231,8 +270,16 @@ class DatabaseAnalyzerCommand extends Command
             $io->section($title);
             $this->logMessage($logHandle, $title);
 
-            $ruleContext = ($constraintsObj instanceof RuleConstraintInterface) ? $constraintsObj->toContext() : [];
-            $context = array_merge($ruleContext, ['dry' => $isDry]);
+            // Build context: constraint → array OR inline array. CLI --dry always wins.
+            $ruleContext = [];
+            if ($constraintsObj instanceof RuleConstraintInterface) {
+                // Your interface exposes toContext(); if it’s named differently, call that instead.
+                $ruleContext = $constraintsObj->toContext();
+            } elseif ($inlineContext !== []) {
+                $ruleContext = $inlineContext;
+            }
+            $context = $ruleContext;
+            $context['dry'] = $isDry; // force CLI flag
 
             $useTransaction = !$ruleClass::isDestructive() && !$isDry;
 

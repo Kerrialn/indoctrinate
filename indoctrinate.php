@@ -5,6 +5,8 @@ use Indoctrinate\Rule\Integrity\Constraint\EnsurePrimaryKeyUuidRuleConstraints;
 use Indoctrinate\Rule\Integrity\Constraint\EnsureUnifiedPrimaryKeyNameRuleConstraints;
 use Indoctrinate\Rule\Integrity\EnsurePrimaryKeyUuidRule;
 use Indoctrinate\Rule\Integrity\EnsureUnifiedPrimaryKeyNameRule;
+use Indoctrinate\Rule\Normalization\Constraint\SlugifyFieldRuleConstraints;
+use Indoctrinate\Rule\Normalization\SlugifyFieldRule;
 use Indoctrinate\Set\EnsurePrimaryKeyUuidSet;
 
 return static function (IndoctrinateConfig $config): void {
@@ -18,25 +20,7 @@ return static function (IndoctrinateConfig $config): void {
         '12345678',
     );
 
-    $config->sets([
-        EnsurePrimaryKeyUuidSet::class => [
-            EnsurePrimaryKeyUuidRule::class => new EnsurePrimaryKeyUuidRuleConstraints(
-                ['default_adverts'],
-                [],
-                [],
-                [],
-                true,
-                true
-            ),
-            EnsureUnifiedPrimaryKeyNameRule::class => new EnsureUnifiedPrimaryKeyNameRuleConstraints(
-                ['default_adverts'],
-                [],
-                [],
-                ['%session%', '%sessions%', '%tmp%', '%temp%', '%cache%'],
-                'id',
-                true,
-                true
-            ),
-        ]
+    $config->rules([
+        SlugifyFieldRule::class => new SlugifyFieldRuleConstraints('default_fields_field', 'field_text', 'slug', 255)
     ]);
 };
