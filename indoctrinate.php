@@ -1,12 +1,17 @@
 <?php
 
 use Indoctrinate\Config\IndoctrinateConfig;
+use Indoctrinate\Rule\Integrity\Constraint\ConvertTemporalColumnsToDatetimeRuleConstraints;
 use Indoctrinate\Rule\Integrity\Constraint\EnsurePrimaryKeyUuidRuleConstraints;
 use Indoctrinate\Rule\Integrity\Constraint\EnsureUnifiedPrimaryKeyNameRuleConstraints;
+use Indoctrinate\Rule\Integrity\Constraint\NormalizeTemporalValuesRuleConstraints;
+use Indoctrinate\Rule\Integrity\ConvertTemporalColumnsToDatetimeRule;
 use Indoctrinate\Rule\Integrity\EnsurePrimaryKeyUuidRule;
 use Indoctrinate\Rule\Integrity\EnsureUnifiedPrimaryKeyNameRule;
+use Indoctrinate\Rule\Integrity\NormalizeTemporalValuesRule;
 use Indoctrinate\Rule\Normalization\Constraint\SlugifyFieldRuleConstraints;
 use Indoctrinate\Rule\Normalization\SlugifyFieldRule;
+use Indoctrinate\Set\EnsureDateTimeSet;
 use Indoctrinate\Set\EnsurePrimaryKeyUuidSet;
 
 return static function (IndoctrinateConfig $config): void {
@@ -20,7 +25,18 @@ return static function (IndoctrinateConfig $config): void {
         '12345678',
     );
 
-    $config->rules([
-        SlugifyFieldRule::class => new SlugifyFieldRuleConstraints('default_fields_field', 'field_text', 'slug', 255)
+    $config->sets([
+        EnsureDateTimeSet::class => [
+            NormalizeTemporalValuesRule::class =>
+                new NormalizeTemporalValuesRuleConstraints(
+                    [], [], [],
+                    ['%session%','%tmp%','%temp%','%cache%'],
+                    'null',
+                    '1970-01-01 00:00:00',
+                    true
+                ),
+            ConvertTemporalColumnsToDatetimeRule::class =>
+                new ConvertTemporalColumnsToDatetimeRuleConstraints(),
+        ],
     ]);
 };
