@@ -4,7 +4,7 @@ An automated package helps you align your database with Doctrine or simply fix d
 
 ## Installation
 
-`composer require kerrialn/indoctrinate`
+`composer require kerrialn/indoctrinate --dev`
 
 ## Configuration
 

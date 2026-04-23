@@ -10,6 +10,9 @@ use Indoctrinate\Rule\Contract\RuleInterface;
 use Indoctrinate\Set\Contract\SetInterface;
 use RuntimeException;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Helper\Table;
+use Symfony\Component\Console\Helper\TableCell;
+use Symfony\Component\Console\Helper\TableSeparator;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -38,13 +41,15 @@ class DatabaseAnalyzerCommand extends Command
             ->addOption('db-name', null, InputOption::VALUE_REQUIRED, 'DB name')
             ->addOption('db-user', null, InputOption::VALUE_REQUIRED, 'DB user')
             ->addOption('db-pass', null, InputOption::VALUE_OPTIONAL, 'DB password (prefer --db-pass-file)')
-            ->addOption('db-pass-file', null, InputOption::VALUE_OPTIONAL, 'Path to file containing DB password');
+            ->addOption('db-pass-file', null, InputOption::VALUE_OPTIONAL, 'Path to file containing DB password')
+            ->addOption('report', null, InputOption::VALUE_NONE, 'Output a summary table of findings per rule (exits non-zero if any findings)');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
         $isDry = (bool) $input->getOption('dry');
+        $isReport = (bool) $input->getOption('report');
         $logDir = $input->getOption('log');
         $isProd = (bool) $input->getOption('prod');
         $logHandle = null;
@@ -132,7 +137,12 @@ class DatabaseAnalyzerCommand extends Command
         $io->success("Connected to database.");
         $io->newLine();
 
+        $activeDriver = $pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);
+
         // ===================== RUN SETS (with per-rule constraints) ==================
+        /** @var array<array{name: string, count: int, group: string}> $reportRows */
+        $reportRows = [];
+
         $sets = $this->config->getSets();
 
         if ($sets !== []) {
@@ -154,6 +164,14 @@ class DatabaseAnalyzerCommand extends Command
                     continue;
                 }
 
+                $incompatible = array_filter($set->getRules(), fn (string $r) => $r::getDriver() !== $activeDriver);
+                if ($incompatible !== []) {
+                    $msg = "Skipping set {$class}: contains rules incompatible with driver '{$activeDriver}'.";
+                    $io->warning($msg);
+                    $this->logMessage($logHandle, $msg);
+                    continue;
+                }
+
                 $title = "Running set: " . $set->getName() . " — " . $set->getDescription();
                 $io->section($title);
                 $this->logMessage($logHandle, $title);
@@ -169,7 +187,23 @@ class DatabaseAnalyzerCommand extends Command
                     $logs = $set->execute($pdo, $io, $setContext);
                     $issueCount = is_array($logs) ? count($logs) : 0;
 
-                    if ($issueCount === 0) {
+                    // Group logs by rule name for report mode
+                    $countByRuleName = [];
+                    foreach ($logs as $log) {
+                        $countByRuleName[$log->getRule()] = ($countByRuleName[$log->getRule()] ?? 0) + 1;
+                    }
+                    foreach ($set->getRules() as $ruleClass) {
+                        $ruleName = $ruleClass::getName();
+                        $reportRows[] = [
+                            'name' => $ruleName,
+                            'count' => $countByRuleName[$ruleName] ?? 0,
+                            'group' => $set->getName(),
+                        ];
+                    }
+
+                    if ($isReport) {
+                        $this->logMessage($logHandle, "Set {$class}: {$issueCount} total findings");
+                    } elseif ($issueCount === 0) {
                         $io->success("✔ {$class}" . ($isDry ? ' (dry run)' : ''));
                         $this->logMessage($logHandle, "No findings from set {$class}");
                     } else {
@@ -187,7 +221,9 @@ class DatabaseAnalyzerCommand extends Command
                     $this->logMessage($logHandle, "✘ {$class} failed: " . $e->getMessage());
                 }
 
-                $io->writeln(str_repeat('-', 80));
+                if (! $isReport) {
+                    $io->writeln(str_repeat('-', 80));
+                }
             }
             $io->newLine(2);
         } else {
@@ -198,7 +234,9 @@ class DatabaseAnalyzerCommand extends Command
         $rules = $this->config->getRules();
 
         if (empty($rules)) {
-            $io->warning("No rules registered.");
+            if ($isReport && $reportRows !== []) {
+                $this->renderReportTable($output, $reportRows);
+            }
             if ($logHandle) {
                 fwrite($logHandle, "[END] DB Fix completed at " . date('Y-m-d H:i:s') . PHP_EOL);
                 fclose($logHandle);
@@ -206,6 +244,16 @@ class DatabaseAnalyzerCommand extends Command
                     $io->note("Log written to: $logPath");
                 }
             }
+            if ($isReport) {
+                $totalFindings = array_sum(array_column($reportRows, 'count'));
+                if ($totalFindings > 0) {
+                    $io->error("Report: {$totalFindings} finding(s) detected. Exiting with failure for CI.");
+                    return Command::FAILURE;
+                }
+                $io->success('Report: No findings detected.');
+                return Command::SUCCESS;
+            }
+            $io->warning("No rules registered.");
             $io->success("All rules executed.");
             return Command::SUCCESS;
         }
@@ -270,6 +318,13 @@ class DatabaseAnalyzerCommand extends Command
                 continue;
             }
 
+            if ($ruleClass::getDriver() !== $activeDriver) {
+                $msg = "Skipping rule {$ruleClass}: requires driver '{$ruleClass::getDriver()}', connected to '{$activeDriver}'.";
+                $io->warning($msg);
+                $this->logMessage($logHandle, $msg);
+                continue;
+            }
+
             $title = "Running rule: " . $ruleClass::getName() . " [" . $ruleClass::getCategory() . "]";
             $io->section($title);
             $this->logMessage($logHandle, $title);
@@ -295,7 +350,15 @@ class DatabaseAnalyzerCommand extends Command
                 $logs = $rule->apply($pdo, $io, $context);
                 $issueCount = is_array($logs) ? count($logs) : 0;
 
-                if ($issueCount === 0) {
+                $reportRows[] = [
+                    'name' => $ruleClass::getName(),
+                    'count' => $issueCount,
+                    'group' => 'standalone',
+                ];
+
+                if ($isReport) {
+                    $this->logMessage($logHandle, "{$ruleClass}: {$issueCount} findings");
+                } elseif ($issueCount === 0) {
                     $io->success('No issues found by this rule.');
                     $this->logMessage($logHandle, "No issues found by {$ruleClass}");
                 } else {
@@ -308,16 +371,20 @@ class DatabaseAnalyzerCommand extends Command
                     $this->logMessage($logHandle, "Findings: {$issueCount}");
                 }
 
-                if ($useTransaction) {
+                if (! $isReport) {
+                    if ($useTransaction) {
+                        $pdo->commit();
+                        $io->success('Transaction committed.');
+                        $this->logMessage($logHandle, "✔ {$ruleClass} committed");
+                    } elseif ($isDry) {
+                        $io->note('Dry run: no schema changes were executed.');
+                        $this->logMessage($logHandle, "✔ {$ruleClass} rolled back (dry run)");
+                    } else {
+                        $io->success('Rule finished.');
+                        $this->logMessage($logHandle, "✔ {$ruleClass} applied");
+                    }
+                } elseif ($useTransaction) {
                     $pdo->commit();
-                    $io->success('Transaction committed.');
-                    $this->logMessage($logHandle, "✔ {$ruleClass} committed");
-                } elseif ($isDry) {
-                    $io->note('Dry run: no schema changes were executed.');
-                    $this->logMessage($logHandle, "✔ {$ruleClass} rolled back (dry run)");
-                } else {
-                    $io->success('Rule finished.');
-                    $this->logMessage($logHandle, "✔ {$ruleClass} applied");
                 }
             } catch (\Throwable $e) {
                 if ($useTransaction && $pdo->inTransaction()) {
@@ -328,8 +395,14 @@ class DatabaseAnalyzerCommand extends Command
                 $this->logMessage($logHandle, "✘ {$ruleClass} failed: " . $e->getMessage());
             }
 
-            $io->newLine();
-            $this->logMessage($logHandle, str_repeat('-', 80));
+            if (! $isReport) {
+                $io->newLine();
+                $this->logMessage($logHandle, str_repeat('-', 80));
+            }
+        }
+
+        if ($isReport && $reportRows !== []) {
+            $this->renderReportTable($output, $reportRows);
         }
 
         if ($logHandle) {
@@ -340,8 +413,46 @@ class DatabaseAnalyzerCommand extends Command
             }
         }
 
+        if ($isReport) {
+            $totalFindings = array_sum(array_column($reportRows, 'count'));
+            if ($totalFindings > 0) {
+                $io->error("Report: {$totalFindings} finding(s) detected. Exiting with failure for CI.");
+                return Command::FAILURE;
+            }
+            $io->success('Report: No findings detected.');
+            return Command::SUCCESS;
+        }
+
         $io->success("All rules executed.");
         return Command::SUCCESS;
+    }
+
+    /**
+     * @param array<array{name: string, count: int, group: string}> $rows
+     */
+    private function renderReportTable(OutputInterface $output, array $rows): void
+    {
+        $table = new Table($output);
+        $table->setHeaders(['Rule', 'Group', 'Findings', 'Status']);
+        $table->setStyle('box');
+
+        $currentGroup = null;
+        foreach ($rows as $row) {
+            if ($currentGroup !== null && $currentGroup !== $row['group']) {
+                $table->addRow(new TableSeparator());
+            }
+            $currentGroup = $row['group'];
+
+            $status = $row['count'] === 0 ? '<info>OK</info>' : '<comment>WARN</comment>';
+            $table->addRow([$row['name'], $row['group'], $row['count'], $status]);
+        }
+
+        $total = array_sum(array_column($rows, 'count'));
+        $table->addRow(new TableSeparator());
+        $table->addRow([new TableCell('<options=bold>TOTAL</>', ['colspan' => 2]), new TableCell("<options=bold>{$total}</>"), '']);
+
+        $table->render();
+        $output->writeln('');
     }
 
     /**

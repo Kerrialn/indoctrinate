@@ -14,6 +14,8 @@ interface RuleInterface
 
     public static function getCategory(): string;
 
+    public static function getDriver(): string;
+
     public static function isDestructive(): bool;
 
     public static function getConstraintClass(): ?string;
