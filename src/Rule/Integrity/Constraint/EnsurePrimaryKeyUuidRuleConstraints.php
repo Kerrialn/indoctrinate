@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Indoctrinate\Rule\Integrity\Constraint;
@@ -13,29 +14,35 @@ final class EnsurePrimaryKeyUuidRuleConstraints implements RuleConstraintInterfa
      * @readonly
      */
     public array $onlyTables = [];
+
     /**
      * @var string[]
      * @readonly
      */
     public array $onlyTableLike = [];
+
     /**
      * @var string[]
      * @readonly
      */
     public array $skipTables = [];
+
     /**
      * @var string[]
      * @readonly
      */
     public array $skipTableLike = ['%session%', '%sessions%', '%tmp%', '%temp%', '%cache%'];
+
     /**
      * @readonly
      */
     public bool $cascade = false;
+
     /**
      * @readonly
      */
     public bool $debug = false;
+
     /**
      * @param string[] $onlyTables
      * @param string[] $onlyTableLike
@@ -47,7 +54,8 @@ final class EnsurePrimaryKeyUuidRuleConstraints implements RuleConstraintInterfa
         array $onlyTableLike = [],
         array $skipTables = [],
         array $skipTableLike = ['%session%', '%sessions%', '%tmp%', '%temp%', '%cache%'],
-        bool  $cascade = false,   bool  $debug = false
+        bool $cascade = false,
+        bool $debug = false
     ) {
         $this->onlyTables = $onlyTables;
         $this->onlyTableLike = $onlyTableLike;
@@ -58,7 +66,7 @@ final class EnsurePrimaryKeyUuidRuleConstraints implements RuleConstraintInterfa
         $this->debug = $debug;
         foreach ([$this->onlyTables, $this->onlyTableLike, $this->skipTables, $this->skipTableLike] as $arr) {
             foreach ($arr as $v) {
-                if (!is_string($v) || $v === '') {
+                if (! is_string($v) || $v === '') {
                     throw new InvalidArgumentException('Table lists/patterns must be non-empty strings.');
                 }
             }
@@ -68,12 +76,12 @@ final class EnsurePrimaryKeyUuidRuleConstraints implements RuleConstraintInterfa
     public function toContext(): array
     {
         return [
-            'only_tables'     => array_values($this->onlyTables),
+            'only_tables' => array_values($this->onlyTables),
             'only_table_like' => array_values($this->onlyTableLike),
-            'skip_tables'     => array_values($this->skipTables),
+            'skip_tables' => array_values($this->skipTables),
             'skip_table_like' => array_values($this->skipTableLike),
-            'cascade'         => $this->cascade,
-            'debug'           => $this->debug,
+            'cascade' => $this->cascade,
+            'debug' => $this->debug,
         ];
     }
 }

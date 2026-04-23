@@ -10,22 +10,27 @@ final class Log
      * @readonly
      */
     private string $rule;
+
     /**
      * @readonly
      */
     private string $table;
+
     /**
      * @readonly
      */
     private string $column;
+
     /**
      * @readonly
      */
     private string $from;
+
     /**
      * @readonly
      */
     private string $to;
+
     public function __construct(string $rule, string $table, string $column, string $from, string $to)
     {
         $this->rule = $rule;

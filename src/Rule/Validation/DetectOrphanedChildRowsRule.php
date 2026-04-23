@@ -18,6 +18,7 @@ final class DetectOrphanedChildRowsRule implements RuleInterface
     {
         return 'detects orphaned child rows';
     }
+
     public static function getCategory(): string
     {
         return 'Validation';

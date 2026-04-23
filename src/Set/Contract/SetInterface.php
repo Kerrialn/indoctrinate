@@ -10,6 +10,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 interface SetInterface
 {
     public function getName(): string;
+
     public function getDescription(): string;
 
     /**

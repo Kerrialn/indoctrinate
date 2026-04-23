@@ -1,17 +1,20 @@
 <?php
+
 namespace Indoctrinate\Set;
 
 use Indoctrinate\Rule\Contract\RuleConstraintInterface;
+use Indoctrinate\Rule\Contract\RuleInterface;
 use Indoctrinate\Rule\Integrity\EnsurePrimaryKeyUuidRule;
 use Indoctrinate\Rule\Integrity\EnsureUnifiedPrimaryKeyNameRule;
+use Indoctrinate\Set\Contract\SetInterface;
 use PDO;
 use Symfony\Component\Console\Output\OutputInterface;
-use Indoctrinate\Set\Contract\SetInterface;
-use Indoctrinate\Rule\Contract\RuleInterface;
 
 final class EnsurePrimaryKeyUuidSet implements SetInterface
 {
-    /** @var array<class-string<RuleInterface>, RuleConstraintInterface> */
+    /**
+     * @var array<class-string<RuleInterface>, RuleConstraintInterface>
+     */
     private array $constraints = [];
 
     public function getName(): string
@@ -24,7 +27,9 @@ final class EnsurePrimaryKeyUuidSet implements SetInterface
         return 'Switch primary keys to UUID (keeping data safe) and then unify the PK column name to `id`.';
     }
 
-    /** @return array<int, class-string<RuleInterface>> */
+    /**
+     * @return array<int, class-string<RuleInterface>>
+     */
     public function getRules(): array
     {
         return [
@@ -33,7 +38,9 @@ final class EnsurePrimaryKeyUuidSet implements SetInterface
         ];
     }
 
-    /** @param array<class-string<RuleInterface>, RuleConstraintInterface> $map */
+    /**
+     * @param array<class-string<RuleInterface>, RuleConstraintInterface> $map
+     */
     public function config(array $map): void
     {
         $this->constraints = $map;

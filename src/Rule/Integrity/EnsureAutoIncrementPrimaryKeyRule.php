@@ -5,7 +5,6 @@ namespace Indoctrinate\Rule\Integrity;
 use Indoctrinate\Log\Log;
 use Indoctrinate\Rule\Contract\RuleInterface;
 use Indoctrinate\Rule\Integrity\Constraint\EnsureAutoIncrementPrimaryKeyRuleConstraints;
-use Indoctrinate\Rule\Normalization\Constraint\SlugifyFieldRuleConstraints;
 use PDO;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -59,7 +58,7 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
                 }
             }
 
-            if (!$forceOnJoins && $this->isPureJoinTable($pdo, $table)) {
+            if (! $forceOnJoins && $this->isPureJoinTable($pdo, $table)) {
                 $results[] = new Log(
                     self::getName(),
                     $table,
@@ -129,7 +128,7 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
 
         if ($idInfo === null) {
             $steps[] = sprintf("ALTER TABLE `%s` ADD COLUMN `id` INT UNSIGNED NULL", $this->qt($table));
-        } elseif (!$this->isIntegerFamily($idInfo['DATA_TYPE'])) {
+        } elseif (! $this->isIntegerFamily($idInfo['DATA_TYPE'])) {
             $notes[] = "Existing `id` is " . strtoupper($idInfo['COLUMN_TYPE']) . " — will be replaced by integers";
             $steps[] = sprintf("ALTER TABLE `%s` MODIFY COLUMN `id` INT UNSIGNED NULL", $this->qt($table));
         }
@@ -151,8 +150,8 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
     private function planForCompositePrimaryKey(string $table, array $pkCols): array
     {
         $pkColsSql = implode(', ', array_map(fn($c) => '`' . $this->qt($c) . '`', $pkCols));
-        $uniqName  = $this->uniqueName("uniq_{$table}_old_pk");
-        $orderSql  = $this->orderBySql($pkCols);
+        $uniqName = $this->uniqueName("uniq_{$table}_old_pk");
+        $orderSql = $this->orderBySql($pkCols);
 
         $steps = [];
         $notes = ["current primary key: ($pkColsSql)"];
@@ -172,8 +171,8 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
     private function planForSingleNonIntegerPrimary(string $table, string $pkCol): array
     {
         $pkColsSql = '`' . $this->qt($pkCol) . '`';
-        $uniqName  = $this->uniqueName("uniq_{$table}_old_pk");
-        $orderSql  = $this->orderBySql([$pkCol]);
+        $uniqName = $this->uniqueName("uniq_{$table}_old_pk");
+        $orderSql = $this->orderBySql([$pkCol]);
 
         $steps = [];
         $notes = ["current primary key: ($pkColsSql)"];
@@ -215,7 +214,7 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
             if ($sql === '__SET_AUTO_INCREMENT_FROM_MAX__') {
                 // Compute next auto-increment value in PHP and inject as literal
                 $stmt = $pdo->query(sprintf("SELECT MAX(`id`) FROM `%s`", $this->qt($table)));
-                $max  = (int)$stmt->fetchColumn();
+                $max = (int) $stmt->fetchColumn();
                 $next = $max > 0 ? $max + 1 : 1;
 
                 $final = sprintf(
@@ -249,7 +248,9 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
               AND c.CONSTRAINT_TYPE='PRIMARY KEY'
             ORDER BY k.ORDINAL_POSITION
         ");
-        $stmt->execute([':t' => $table]);
+        $stmt->execute([
+            ':t' => $table,
+        ]);
         return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'COLUMN_NAME');
     }
 
@@ -263,7 +264,10 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
               AND COLUMN_NAME = :c
             LIMIT 1
         ");
-        $stmt->execute([':t' => $table, ':c' => $column]);
+        $stmt->execute([
+            ':t' => $table,
+            ':c' => $column,
+        ]);
         $r = $stmt->fetch(PDO::FETCH_ASSOC);
         return $r ?: null;
     }
@@ -283,7 +287,9 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
               AND k.TABLE_NAME = :t
               AND k.REFERENCED_TABLE_NAME IS NOT NULL
         ");
-        $stmt->execute([':t' => $table]);
+        $stmt->execute([
+            ':t' => $table,
+        ]);
         return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'COLUMN_NAME');
     }
 
@@ -295,7 +301,9 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
             WHERE TABLE_SCHEMA = DATABASE()
               AND TABLE_NAME = :t
         ");
-        $stmt->execute([':t' => $table]);
+        $stmt->execute([
+            ':t' => $table,
+        ]);
         return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'COLUMN_NAME');
     }
 
@@ -330,9 +338,11 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
               AND INDEX_NAME <> 'PRIMARY'
             ORDER BY INDEX_NAME, SEQ_IN_INDEX
         ");
-        $stmt->execute([':t' => $table]);
+        $stmt->execute([
+            ':t' => $table,
+        ]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        if (!$rows) {
+        if (! $rows) {
             return [];
         }
         $firstIndex = $rows[0]['INDEX_NAME'];

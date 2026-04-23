@@ -39,13 +39,13 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
     {
         $results = [];
 
-        $onlyTables = array_map('strtolower', (array)($context['only_tables'] ?? []));
-        $onlyLike = (array)($context['only_table_like'] ?? []);
-        $skipTables = array_map('strtolower', (array)($context['skip_tables'] ?? []));
-        $skipLike = (array)($context['skip_table_like'] ?? ['%session%', '%sessions%', '%tmp%', '%temp%', '%cache%']);
-        $debug = (bool)($context['debug'] ?? false);
-        $dry = (bool)($context['dry'] ?? false);
-        $cascade = (bool)($context['cascade'] ?? false);
+        $onlyTables = array_map('strtolower', (array) ($context['only_tables'] ?? []));
+        $onlyLike = (array) ($context['only_table_like'] ?? []);
+        $skipTables = array_map('strtolower', (array) ($context['skip_tables'] ?? []));
+        $skipLike = (array) ($context['skip_table_like'] ?? ['%session%', '%sessions%', '%tmp%', '%temp%', '%cache%']);
+        $debug = (bool) ($context['debug'] ?? false);
+        $dry = (bool) ($context['dry'] ?? false);
+        $cascade = (bool) ($context['cascade'] ?? false);
 
         $allow = function (string $table) use ($onlyTables, $onlyLike, $skipTables, $skipLike): bool {
             $t = strtolower($table);
@@ -102,7 +102,7 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
                     $output->writeln("[$table] DRY: WOULD ADD `id` CHAR(36) NOT NULL (populate UUID), DROP PRIMARY KEY, ADD PRIMARY KEY(`id`), ADD UNIQUE ($prevColsSql)");
                     $results[] = new Log(self::getName(), $table, '(composite)', 'present', 'DRY: would replace with UUID PK and unique previous PK');
                 } else {
-                    if (!$this->columnExists($pdo, $table, 'id')) {
+                    if (! $this->columnExists($pdo, $table, 'id')) {
                         $pdo->exec(sprintf("ALTER TABLE `%s` ADD COLUMN `id` CHAR(36) NULL", $this->qt($table)));
                     }
                     $pdo->exec(sprintf("UPDATE `%s` SET `id` = UUID()", $this->qt($table)));
@@ -119,15 +119,15 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
 
             // --- SINGLE-COLUMN PK ---
             $pk = $pkCols[0];
-            $pkInfo     = $this->getColumnInfo($pdo, $table, $pk);
-            $isChar36Pk = $pkInfo && $this->isChar36((string)$pkInfo['COLUMN_TYPE']);
-            $isNotNull  = $pkInfo && strtoupper((string)$pkInfo['IS_NULLABLE']) === 'NO';
-            $isIntLike  = $pkInfo && preg_match('/\b(tinyint|smallint|mediumint|int|bigint)\b/i', (string)$pkInfo['COLUMN_TYPE']);
+            $pkInfo = $this->getColumnInfo($pdo, $table, $pk);
+            $isChar36Pk = $pkInfo && $this->isChar36((string) $pkInfo['COLUMN_TYPE']);
+            $isNotNull = $pkInfo && strtoupper((string) $pkInfo['IS_NULLABLE']) === 'NO';
+            $isIntLike = $pkInfo && preg_match('/\b(tinyint|smallint|mediumint|int|bigint)\b/i', (string) $pkInfo['COLUMN_TYPE']);
 
             // 0) Already UUID-shaped PK? (either 'uuid' or 'id' as CHAR(36))
             //    If nullable, tighten to NOT NULL; otherwise skip this table.
             if (($pk === 'uuid' || $pk === 'id') && $isChar36Pk) {
-                if (!$isNotNull) {
+                if (! $isNotNull) {
                     if ($dry) {
                         $output->writeln("[$table] DRY: WOULD ALTER `$pk` to NOT NULL");
                         $results[] = new Log(self::getName(), $table, $pk, 'CHAR(36) NULL', 'DRY: would set NOT NULL');
@@ -143,11 +143,16 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
             }
 
             // 1) PK named 'id' but NOT CHAR(36) → convert IN-PLACE, keep name 'id'
-            if ($pk === 'id' && !$isChar36Pk) {
-                $childCount = (int)($childFks[$table] ?? 0);
-                if ($childCount > 0 && !$cascade) {
-                    $results[] = new Log(self::getName(), $table, 'id', 'int/bigint primary key with child FKs',
-                        "skip automatic rewrite to UUID (affects {$childCount} child FK relationship(s)); run with --cascade to migrate");
+            if ($pk === 'id' && ! $isChar36Pk) {
+                $childCount = (int) ($childFks[$table] ?? 0);
+                if ($childCount > 0 && ! $cascade) {
+                    $results[] = new Log(
+                        self::getName(),
+                        $table,
+                        'id',
+                        'int/bigint primary key with child FKs',
+                        "skip automatic rewrite to UUID (affects {$childCount} child FK relationship(s)); run with --cascade to migrate"
+                    );
                     $output->writeln("[$table] SKIP: {$childCount} child FK(s); re-run with --cascade to migrate.");
                     continue;
                 }
@@ -165,12 +170,12 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
             //         • with children and no --cascade → skip & log (handle later in naming rule)
             //         • with children and --cascade   → still skip here to avoid renaming; do in naming rule
             //         • without children              → add UUID `id` and make it PK (drop old PK col)
-            if (!$isIntLike) {
-                $results[] = new Log(self::getName(), $table, $pk, (string)($pkInfo['COLUMN_TYPE'] ?? 'unknown'), 'non-integer PK → nothing to do');
+            if (! $isIntLike) {
+                $results[] = new Log(self::getName(), $table, $pk, (string) ($pkInfo['COLUMN_TYPE'] ?? 'unknown'), 'non-integer PK → nothing to do');
                 continue;
             }
 
-            $childCount = (int)($childFks[$table] ?? 0);
+            $childCount = (int) ($childFks[$table] ?? 0);
             if ($childCount > 0) {
                 $results[] = new Log(
                     self::getName(),
@@ -188,7 +193,7 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
                 $output->writeln("[$table] DRY: WOULD add `id` CHAR(36), fill UUIDs, drop PK, set PK(id), drop old PK `$pk`");
                 $results[] = new Log(self::getName(), $table, $pk, 'int/bigint PK', 'DRY: would convert to UUID PK named id');
             } else {
-                if (!$this->columnExists($pdo, $table, 'id')) {
+                if (! $this->columnExists($pdo, $table, 'id')) {
                     $pdo->exec(sprintf("ALTER TABLE `%s` ADD COLUMN `id` CHAR(36) NULL", $this->qt($table)));
                 }
                 $pdo->exec(sprintf("UPDATE `%s` SET `id` = UUID()", $this->qt($table)));
@@ -226,10 +231,12 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
               AND CONSTRAINT_NAME   = :n
             LIMIT 1
         ");
-            $st->execute([':n' => $constraintName]);
+            $st->execute([
+                ':n' => $constraintName,
+            ]);
             $row = $st->fetch(PDO::FETCH_ASSOC) ?: [];
-            $upd = strtoupper((string)($row['UPDATE_RULE'] ?? 'RESTRICT'));
-            $del = strtoupper((string)($row['DELETE_RULE'] ?? 'RESTRICT'));
+            $upd = strtoupper((string) ($row['UPDATE_RULE'] ?? 'RESTRICT'));
+            $del = strtoupper((string) ($row['DELETE_RULE'] ?? 'RESTRICT'));
             if ($upd === 'NO ACTION') $upd = 'RESTRICT';
             if ($del === 'NO ACTION') $del = 'RESTRICT';
             return [$upd, $del];
@@ -237,28 +244,34 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
 
         // 1) Ensure parent UUID column exists & backfilled & unique
         if ($dry) {
-            if (!$this->columnExists($pdo, $parent, $parentUuidCol)) {
+            if (! $this->columnExists($pdo, $parent, $parentUuidCol)) {
                 $out->writeln("[$parent] DRY: WOULD ADD COLUMN `$parentUuidCol` CHAR(36) NULL");
             }
             $out->writeln("[$parent] DRY: WOULD UPDATE `$parent`.`$parentUuidCol` = UUID() WHERE NULL/empty");
             $out->writeln("[$parent] DRY: WOULD ADD UNIQUE KEY on `$parentUuidCol`");
         } else {
-            if (!$this->columnExists($pdo, $parent, $parentUuidCol)) {
+            if (! $this->columnExists($pdo, $parent, $parentUuidCol)) {
                 $pdo->exec(sprintf(
                     "ALTER TABLE `%s` ADD COLUMN `%s` CHAR(36) NULL",
-                    $this->qt($parent), $this->qt($parentUuidCol)
+                    $this->qt($parent),
+                    $this->qt($parentUuidCol)
                 ));
             }
             $pdo->exec(sprintf(
                 "UPDATE `%s` SET `%s` = UUID() WHERE `%s` IS NULL OR `%s` = ''",
-                $this->qt($parent), $this->qt($parentUuidCol), $this->qt($parentUuidCol), $this->qt($parentUuidCol)
+                $this->qt($parent),
+                $this->qt($parentUuidCol),
+                $this->qt($parentUuidCol),
+                $this->qt($parentUuidCol)
             ));
 
-            if (!$this->hasIndexOnColumns($pdo, $parent, [$parentUuidCol], /*unique*/ true)) {
+            if (! $this->hasIndexOnColumns($pdo, $parent, [$parentUuidCol], /*unique*/ true)) {
                 $uniqName = $this->makeConstraintName($parent, $parentUuidCol, 'unique');
                 $pdo->exec(sprintf(
                     "ALTER TABLE `%s` ADD UNIQUE `%s` (`%s`)",
-                    $this->qt($parent), $this->qt($uniqName), $this->qt($parentUuidCol)
+                    $this->qt($parent),
+                    $this->qt($uniqName),
+                    $this->qt($parentUuidCol)
                 ));
             }
         }
@@ -280,7 +293,7 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
             $nonNull = $this->countNonNulls($pdo, $childTable, $childCol, /*treatZeroAsNull*/ true);
 
             if ($dry) {
-                if (!$this->columnExists($pdo, $childTable, $childUuidCol)) {
+                if (! $this->columnExists($pdo, $childTable, $childUuidCol)) {
                     $out->writeln("[$childTable] DRY: WOULD ADD `$childUuidCol` CHAR(36) NULL" . ($nonNull === 0 ? " (no data to backfill)" : ""));
                 } else {
                     $out->writeln("[$childTable] DRY: `$childUuidCol` already exists");
@@ -288,12 +301,12 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
                 if ($nonNull > 0) {
                     $out->writeln("[$childTable] DRY: WOULD backfill `$childUuidCol` via JOIN to `$parent`.`$parentUuidCol`");
                 }
-                if (!$this->hasIndexOnColumns($pdo, $childTable, [$childUuidCol], false)) {
+                if (! $this->hasIndexOnColumns($pdo, $childTable, [$childUuidCol], false)) {
                     $idxName = $this->makeConstraintName($childTable, $childUuidCol, 'idx');
                     $out->writeln("[$childTable] DRY: WOULD ADD INDEX `$idxName` (`$childUuidCol`)");
                 }
                 $fkNewName = $this->makeConstraintName($childTable, $childUuidCol, $parent, 'fk');
-                if (!$this->fkNameExists($pdo, $fkNewName)) {
+                if (! $this->fkNameExists($pdo, $fkNewName)) {
                     $out->writeln("[$childTable] DRY: WOULD ADD FK `$fkNewName` (`$childUuidCol`) → `$parent`(`$parentUuidCol`) ON DELETE $deleteRule ON UPDATE $updateRule");
                 } else {
                     $out->writeln("[$childTable] DRY: FK `$fkNewName` already exists");
@@ -305,10 +318,11 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
             }
 
             // Add shadow column if missing
-            if (!$this->columnExists($pdo, $childTable, $childUuidCol)) {
+            if (! $this->columnExists($pdo, $childTable, $childUuidCol)) {
                 $pdo->exec(sprintf(
                     "ALTER TABLE `%s` ADD COLUMN `%s` CHAR(36) NULL",
-                    $this->qt($childTable), $this->qt($childUuidCol)
+                    $this->qt($childTable),
+                    $this->qt($childUuidCol)
                 ));
             }
 
@@ -319,25 +333,31 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
                  JOIN `%s` p ON p.`%s` = c.`%s`
                  SET c.`%s` = p.`%s`
                  WHERE c.`%s` IS NULL OR c.`%s` = ''",
-                    $this->qt($childTable), $this->qt($parent),
-                    $this->qt($parentPk), $this->qt($childCol),
-                    $this->qt($childUuidCol), $this->qt($parentUuidCol),
-                    $this->qt($childUuidCol), $this->qt($childUuidCol)
+                    $this->qt($childTable),
+                    $this->qt($parent),
+                    $this->qt($parentPk),
+                    $this->qt($childCol),
+                    $this->qt($childUuidCol),
+                    $this->qt($parentUuidCol),
+                    $this->qt($childUuidCol),
+                    $this->qt($childUuidCol)
                 ));
             }
 
             // Index the shadow column if needed
-            if (!$this->hasIndexOnColumns($pdo, $childTable, [$childUuidCol], false)) {
+            if (! $this->hasIndexOnColumns($pdo, $childTable, [$childUuidCol], false)) {
                 $idxName = $this->makeConstraintName($childTable, $childUuidCol, 'idx');
                 $pdo->exec(sprintf(
                     "ALTER TABLE `%s` ADD INDEX `%s` (`%s`)",
-                    $this->qt($childTable), $this->qt($idxName), $this->qt($childUuidCol)
+                    $this->qt($childTable),
+                    $this->qt($idxName),
+                    $this->qt($childUuidCol)
                 ));
             }
 
             // Add *new* FK on the shadow column with preserved rules
             $fkNewName = $this->makeConstraintName($childTable, $childUuidCol, $parent, 'fk');
-            if (!$this->fkNameExists($pdo, $fkNewName)) {
+            if (! $this->fkNameExists($pdo, $fkNewName)) {
                 $pdo->exec(sprintf(
                     "ALTER TABLE `%s` ADD CONSTRAINT `%s` FOREIGN KEY (`%s`) " .
                     "REFERENCES `%s`(`%s`) ON DELETE %s ON UPDATE %s",
@@ -355,7 +375,8 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
             if ($this->fkNameExists($pdo, $fkOldName)) {
                 $pdo->exec(sprintf(
                     "ALTER TABLE `%s` DROP FOREIGN KEY `%s`",
-                    $this->qt($childTable), $this->qt($fkOldName)
+                    $this->qt($childTable),
+                    $this->qt($fkOldName)
                 ));
             }
         }
@@ -368,7 +389,9 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
             $pdo->exec(sprintf("ALTER TABLE `%s` DROP PRIMARY KEY", $this->qt($parent)));
             $pdo->exec(sprintf(
                 "ALTER TABLE `%s` MODIFY `%s` CHAR(36) NOT NULL, ADD PRIMARY KEY (`%s`)",
-                $this->qt($parent), $this->qt($parentUuidCol), $this->qt($parentUuidCol)
+                $this->qt($parent),
+                $this->qt($parentUuidCol),
+                $this->qt($parentUuidCol)
             ));
         }
 
@@ -381,8 +404,8 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
             if ($dry) {
                 // Peek old nullability
                 $info = $this->getColumnInfo($pdo, $childTable, $childCol);
-                $oldWasNullable = $info ? (strtoupper((string)$info['IS_NULLABLE']) === 'YES') : true;
-                if (!$oldWasNullable) {
+                $oldWasNullable = $info ? (strtoupper((string) $info['IS_NULLABLE']) === 'YES') : true;
+                if (! $oldWasNullable) {
                     $out->writeln("[$childTable] DRY: WOULD ensure no NULLs in `$childUuidCol`, then MODIFY NOT NULL");
                 } else {
                     $out->writeln("[$childTable] DRY: keep `$childUuidCol` NULLable (old FK was NULLable)");
@@ -394,26 +417,31 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
             }
 
             $info = $this->getColumnInfo($pdo, $childTable, $childCol);
-            $oldWasNullable = $info ? (strtoupper((string)$info['IS_NULLABLE']) === 'YES') : true;
+            $oldWasNullable = $info ? (strtoupper((string) $info['IS_NULLABLE']) === 'YES') : true;
 
-            if (!$oldWasNullable) {
+            if (! $oldWasNullable) {
                 $nulls = $this->countNulls($pdo, $childTable, $childUuidCol);
                 if ($nulls > 0) {
                     throw new \RuntimeException(sprintf(
                         "[%s] Cannot set `%s.%s` NOT NULL: %d NULL row(s) remain after backfill.",
-                        self::getName(), $childTable, $childUuidCol, $nulls
+                        self::getName(),
+                        $childTable,
+                        $childUuidCol,
+                        $nulls
                     ));
                 }
                 $pdo->exec(sprintf(
                     "ALTER TABLE `%s` MODIFY `%s` CHAR(36) NOT NULL",
-                    $this->qt($childTable), $this->qt($childUuidCol)
+                    $this->qt($childTable),
+                    $this->qt($childUuidCol)
                 ));
             }
 
             if ($this->columnExists($pdo, $childTable, $childCol)) {
                 $pdo->exec(sprintf(
                     "ALTER TABLE `%s` DROP COLUMN `%s`",
-                    $this->qt($childTable), $this->qt($childCol)
+                    $this->qt($childTable),
+                    $this->qt($childCol)
                 ));
             }
         }
@@ -425,7 +453,8 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
             } else {
                 $pdo->exec(sprintf(
                     "ALTER TABLE `%s` DROP COLUMN `%s`",
-                    $this->qt($parent), $this->qt($parentPk)
+                    $this->qt($parent),
+                    $this->qt($parentPk)
                 ));
             }
         }
@@ -433,16 +462,19 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
 
     private function countNulls(PDO $pdo, string $table, string $col): int
     {
-        $sql = sprintf("SELECT COUNT(*) FROM `%s` WHERE `%s` IS NULL OR `%s` = ''",
-            $this->qt($table), $this->qt($col), $this->qt($col)
+        $sql = sprintf(
+            "SELECT COUNT(*) FROM `%s` WHERE `%s` IS NULL OR `%s` = ''",
+            $this->qt($table),
+            $this->qt($col),
+            $this->qt($col)
         );
-        return (int)$pdo->query($sql)->fetchColumn();
+        return (int) $pdo->query($sql)->fetchColumn();
     }
 
     private function likeMatch(string $table, string $likePattern): bool
     {
         $re = '~^' . str_replace(['%', '_'], ['.*', '.'], preg_quote($likePattern, '~')) . '$~i';
-        return (bool)preg_match($re, $table);
+        return (bool) preg_match($re, $table);
     }
 
     private function makeIndexName(string $table, string $col, string $suffix = 'idx'): string
@@ -460,8 +492,11 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
               AND COLUMN_NAME = :c
             LIMIT 1
         ");
-        $st->execute([':t' => $table, ':c' => $col]);
-        return (bool)$st->fetchColumn();
+        $st->execute([
+            ':t' => $table,
+            ':c' => $col,
+        ]);
+        return (bool) $st->fetchColumn();
     }
 
     private function hasIndexOnColumns(PDO $pdo, string $table, array $cols, bool $requireUnique): bool
@@ -470,16 +505,16 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
         // group by index name, preserve order
         $byIdx = [];
         foreach ($rows as $r) {
-            $key = (string)($r['Key_name'] ?? '');
-            $seq = (int)($r['Seq_in_index'] ?? 0);
-            $col = strtolower((string)($r['Column_name'] ?? ''));
-            $byIdx[$key]['_unique'] = ((int)($r['Non_unique'] ?? 1) === 0);
+            $key = (string) ($r['Key_name'] ?? '');
+            $seq = (int) ($r['Seq_in_index'] ?? 0);
+            $col = strtolower((string) ($r['Column_name'] ?? ''));
+            $byIdx[$key]['_unique'] = ((int) ($r['Non_unique'] ?? 1) === 0);
             $byIdx[$key][$seq] = $col;
         }
         $needle = array_map('strtolower', $cols);
         foreach ($byIdx as $key => $info) {
-            $isUnique = (bool)($info['_unique'] ?? false);
-            if ($requireUnique && !$isUnique) continue;
+            $isUnique = (bool) ($info['_unique'] ?? false);
+            if ($requireUnique && ! $isUnique) continue;
             unset($info['_unique']);
             ksort($info);
             $colsInIdx = array_values($info);
@@ -506,7 +541,10 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
           AND k.REFERENCED_COLUMN_NAME = :pk
           AND k.COLUMN_NAME NOT LIKE '%\\_uuid%'  -- skip already-migrated columns
     ");
-        $st->execute([':parent' => $parentTable, ':pk' => $parentPkCol]);
+        $st->execute([
+            ':parent' => $parentTable,
+            ':pk' => $parentPkCol,
+        ]);
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
@@ -520,7 +558,10 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
               AND COLUMN_NAME = :c
             LIMIT 1
         ");
-        $st->execute([':t' => $table, ':c' => $col]);
+        $st->execute([
+            ':t' => $table,
+            ':c' => $col,
+        ]);
         $row = $st->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
     }
@@ -529,20 +570,29 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
     {
         foreach ($pkCols as $col) {
             $info = $this->getColumnInfo($pdo, $table, $col);
-            if (!$info) continue;
-            if (stripos((string)$info['EXTRA'], 'auto_increment') === false) continue;
+            if (! $info) continue;
+            if (stripos((string) $info['EXTRA'], 'auto_increment') === false) continue;
 
-            $ctype = (string)$info['COLUMN_TYPE'];         // e.g. "bigint unsigned"
-            $null = strtoupper((string)$info['IS_NULLABLE']) === 'YES' ? 'NULL' : 'NOT NULL';
+            $ctype = (string) $info['COLUMN_TYPE'];         // e.g. "bigint unsigned"
+            $null = strtoupper((string) $info['IS_NULLABLE']) === 'YES' ? 'NULL' : 'NOT NULL';
 
             if ($dry) {
-                $out->writeln(sprintf('[%s] DRY: WOULD REMOVE AUTO_INCREMENT from `%s`.`%s` (MODIFY `%s` %s %s)',
-                    self::getName(), $table, $col, $col, $ctype, $null
+                $out->writeln(sprintf(
+                    '[%s] DRY: WOULD REMOVE AUTO_INCREMENT from `%s`.`%s` (MODIFY `%s` %s %s)',
+                    self::getName(),
+                    $table,
+                    $col,
+                    $col,
+                    $ctype,
+                    $null
                 ));
             } else {
                 $pdo->exec(sprintf(
                     "ALTER TABLE `%s` MODIFY `%s` %s %s",
-                    $this->qt($table), $this->qt($col), $ctype, $null
+                    $this->qt($table),
+                    $this->qt($col),
+                    $ctype,
+                    $null
                 ));
             }
         }
@@ -565,7 +615,7 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
         ")->fetchAll(PDO::FETCH_ASSOC);
 
         $out = [];
-        foreach ($rows as $r) $out[$r['parent_table']] = (int)$r['c'];
+        foreach ($rows as $r) $out[$r['parent_table']] = (int) $r['c'];
         return $out;
     }
 
@@ -657,7 +707,7 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
 
     private function isChar36(string $columnType): bool
     {
-        return (bool)preg_match('/^char\s*\(\s*36\s*\)/i', trim($columnType));
+        return (bool) preg_match('/^char\s*\(\s*36\s*\)/i', trim($columnType));
     }
 
     /**
@@ -687,8 +737,10 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
               AND CONSTRAINT_NAME = :n
             LIMIT 1
         ");
-        $st->execute([':n' => $constraintName]);
-        return (bool)$st->fetchColumn();
+        $st->execute([
+            ':n' => $constraintName,
+        ]);
+        return (bool) $st->fetchColumn();
     }
 
     private function countNonNulls(PDO $pdo, string $table, string $col, bool $treatZeroAsNull = true): int
@@ -698,7 +750,7 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
             : sprintf("`%s` IS NOT NULL", $this->qt($col));
 
         $sql = sprintf("SELECT COUNT(*) FROM `%s` WHERE %s", $this->qt($table), $cond);
-        return (int)$pdo->query($sql)->fetchColumn();
+        return (int) $pdo->query($sql)->fetchColumn();
     }
 
     private function makeShadowUuidCol(string $col): string
@@ -727,26 +779,34 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
         $tmpParent = 'id_uuid_tmp';
 
         if ($dry) {
-            if (!$this->columnExists($pdo, $parent, $tmpParent)) {
+            if (! $this->columnExists($pdo, $parent, $tmpParent)) {
                 $out->writeln("[$parent] DRY: WOULD ADD COLUMN `$tmpParent` CHAR(36) NULL");
             }
             $out->writeln("[$parent] DRY: WOULD UPDATE `$parent`.`$tmpParent` = UUID() WHERE NULL/empty");
             $out->writeln("[$parent] DRY: WOULD ADD UNIQUE KEY on `$tmpParent`");
         } else {
-            if (!$this->columnExists($pdo, $parent, $tmpParent)) {
-                $pdo->exec(sprintf("ALTER TABLE `%s` ADD COLUMN `%s` CHAR(36) NULL",
-                    $this->qt($parent), $this->qt($tmpParent)
+            if (! $this->columnExists($pdo, $parent, $tmpParent)) {
+                $pdo->exec(sprintf(
+                    "ALTER TABLE `%s` ADD COLUMN `%s` CHAR(36) NULL",
+                    $this->qt($parent),
+                    $this->qt($tmpParent)
                 ));
             }
             $pdo->exec(sprintf(
                 "UPDATE `%s` SET `%s` = UUID() WHERE `%s` IS NULL OR `%s` = ''",
-                $this->qt($parent), $this->qt($tmpParent), $this->qt($tmpParent), $this->qt($tmpParent)
+                $this->qt($parent),
+                $this->qt($tmpParent),
+                $this->qt($tmpParent),
+                $this->qt($tmpParent)
             ));
             // UNIQUE so children can FK to it pre-flip
-            if (!$this->hasIndexOnColumns($pdo, $parent, [$tmpParent], /*unique*/ true)) {
+            if (! $this->hasIndexOnColumns($pdo, $parent, [$tmpParent], /*unique*/ true)) {
                 $uniq = $this->makeConstraintName($parent, $tmpParent, 'uniq');
-                $pdo->exec(sprintf("ALTER TABLE `%s` ADD UNIQUE `%s` (`%s`)",
-                    $this->qt($parent), $this->qt($uniq), $this->qt($tmpParent)
+                $pdo->exec(sprintf(
+                    "ALTER TABLE `%s` ADD UNIQUE `%s` (`%s`)",
+                    $this->qt($parent),
+                    $this->qt($uniq),
+                    $this->qt($tmpParent)
                 ));
             }
         }
@@ -762,7 +822,7 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
             $tmpChildCol = $childCol . '_tmp';
 
             if ($dry) {
-                if (!$this->columnExists($pdo, $childTable, $tmpChildCol)) {
+                if (! $this->columnExists($pdo, $childTable, $tmpChildCol)) {
                     $out->writeln("[$childTable] DRY: WOULD ADD COLUMN `$tmpChildCol` CHAR(36) NULL");
                 }
                 $out->writeln("[$childTable] DRY: WOULD BACKFILL `$tmpChildCol` from `$childCol` via parent.`$tmpParent`");
@@ -775,9 +835,11 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
             }
 
             // add temp char(36) column if missing
-            if (!$this->columnExists($pdo, $childTable, $tmpChildCol)) {
-                $pdo->exec(sprintf("ALTER TABLE `%s` ADD COLUMN `%s` CHAR(36) NULL",
-                    $this->qt($childTable), $this->qt($tmpChildCol)
+            if (! $this->columnExists($pdo, $childTable, $tmpChildCol)) {
+                $pdo->exec(sprintf(
+                    "ALTER TABLE `%s` ADD COLUMN `%s` CHAR(36) NULL",
+                    $this->qt($childTable),
+                    $this->qt($tmpChildCol)
                 ));
             }
 
@@ -787,34 +849,46 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
              JOIN `%s` p ON p.`%s` = c.`%s`
                 SET c.`%s` = p.`%s`
               WHERE c.`%s` IS NULL OR c.`%s` = ''",
-                $this->qt($childTable), $this->qt($parent),
-                $this->qt($parentPk), $this->qt($childCol),
-                $this->qt($tmpChildCol), $this->qt($tmpParent),
-                $this->qt($tmpChildCol), $this->qt($tmpChildCol)
+                $this->qt($childTable),
+                $this->qt($parent),
+                $this->qt($parentPk),
+                $this->qt($childCol),
+                $this->qt($tmpChildCol),
+                $this->qt($tmpParent),
+                $this->qt($tmpChildCol),
+                $this->qt($tmpChildCol)
             ));
 
             // index temp col
-            if (!$this->hasIndexOnColumns($pdo, $childTable, [$tmpChildCol], false)) {
+            if (! $this->hasIndexOnColumns($pdo, $childTable, [$tmpChildCol], false)) {
                 $idx = $this->makeConstraintName($childTable, $tmpChildCol, 'idx');
-                $pdo->exec(sprintf("ALTER TABLE `%s` ADD INDEX `%s` (`%s`)",
-                    $this->qt($childTable), $this->qt($idx), $this->qt($tmpChildCol)
+                $pdo->exec(sprintf(
+                    "ALTER TABLE `%s` ADD INDEX `%s` (`%s`)",
+                    $this->qt($childTable),
+                    $this->qt($idx),
+                    $this->qt($tmpChildCol)
                 ));
             }
 
             // parallel FK to parent.tmp UUID (needs UNIQUE on parent tmp col)
             $fkParallel = $this->makeConstraintName($childTable, $tmpChildCol, $parent, 'uuid_fk');
-            if (!$this->fkNameExists($pdo, $fkParallel)) {
+            if (! $this->fkNameExists($pdo, $fkParallel)) {
                 $pdo->exec(sprintf(
                     "ALTER TABLE `%s` ADD CONSTRAINT `%s` FOREIGN KEY (`%s`) REFERENCES `%s`(`%s`)",
-                    $this->qt($childTable), $this->qt($fkParallel),
-                    $this->qt($tmpChildCol), $this->qt($parent), $this->qt($tmpParent)
+                    $this->qt($childTable),
+                    $this->qt($fkParallel),
+                    $this->qt($tmpChildCol),
+                    $this->qt($parent),
+                    $this->qt($tmpParent)
                 ));
             }
 
             // drop old FK on legacy int col
             if ($this->fkNameExists($pdo, $fkOldName)) {
-                $pdo->exec(sprintf("ALTER TABLE `%s` DROP FOREIGN KEY `%s`",
-                    $this->qt($childTable), $this->qt($fkOldName)
+                $pdo->exec(sprintf(
+                    "ALTER TABLE `%s` DROP FOREIGN KEY `%s`",
+                    $this->qt($childTable),
+                    $this->qt($fkOldName)
                 ));
             }
         }
@@ -825,7 +899,7 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
         } else {
             // capture old column type/nullability to rename safely
             $idInfo = $this->getColumnInfo($pdo, $parent, $parentPk); // COLUMN_TYPE, IS_NULLABLE, EXTRA
-            if (!$idInfo) {
+            if (! $idInfo) {
                 throw new \RuntimeException("[$parent] cannot read column info for `id`");
             }
 
@@ -837,21 +911,28 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
 
             // rename id -> id_old (preserve original type exactly)
             $oldType = $idInfo['COLUMN_TYPE']; // e.g. "bigint unsigned"
-            $oldNull = (strtoupper((string)$idInfo['IS_NULLABLE']) === 'YES') ? 'NULL' : 'NOT NULL';
+            $oldNull = (strtoupper((string) $idInfo['IS_NULLABLE']) === 'YES') ? 'NULL' : 'NOT NULL';
             $pdo->exec(sprintf(
                 "ALTER TABLE `%s` CHANGE `%s` `id_old` %s %s",
-                $this->qt($parent), $this->qt($parentPk), $oldType, $oldNull
+                $this->qt($parent),
+                $this->qt($parentPk),
+                $oldType,
+                $oldNull
             ));
 
             // promote tmp UUID to final `id`
             $pdo->exec(sprintf(
                 "ALTER TABLE `%s` CHANGE `%s` `%s` CHAR(36) NOT NULL",
-                $this->qt($parent), $this->qt($tmpParent), $this->qt($parentPk)
+                $this->qt($parent),
+                $this->qt($tmpParent),
+                $this->qt($parentPk)
             ));
 
             // (re)add PK on id
-            $pdo->exec(sprintf("ALTER TABLE `%s` ADD PRIMARY KEY (`%s`)",
-                $this->qt($parent), $this->qt($parentPk)
+            $pdo->exec(sprintf(
+                "ALTER TABLE `%s` ADD PRIMARY KEY (`%s`)",
+                $this->qt($parent),
+                $this->qt($parentPk)
             ));
 
             // drop id_old (we're *keeping the name* `id` as the UUID)
@@ -868,11 +949,11 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
             $childColInfo = $this->getColumnInfo($pdo, $childTable, $childCol);
             $oldWasNullable = true;
             if ($childColInfo && isset($childColInfo['IS_NULLABLE'])) {
-                $oldWasNullable = (strtoupper((string)$childColInfo['IS_NULLABLE']) === 'YES');
+                $oldWasNullable = (strtoupper((string) $childColInfo['IS_NULLABLE']) === 'YES');
             }
 
             if ($dry) {
-                if (!$oldWasNullable) {
+                if (! $oldWasNullable) {
                     $out->writeln("[$childTable] DRY: WOULD ENSURE `$tmpChildCol` has no NULLs, then MODIFY `$tmpChildCol` NOT NULL");
                 }
                 $finalFk = $this->makeConstraintName($childTable, $childCol, $parent, 'id_fk');
@@ -881,46 +962,54 @@ final class EnsurePrimaryKeyUuidRule implements RuleInterface
             }
 
             // tighten NOT NULL if the old col was NOT NULL
-            if (!$oldWasNullable) {
+            if (! $oldWasNullable) {
                 $nulls = $this->countNulls($pdo, $childTable, $tmpChildCol);
                 if ($nulls > 0) {
                     throw new \RuntimeException(sprintf(
                         "[%s] Cannot set `%s.%s` NOT NULL: %d NULL row(s) remain after backfill.",
-                        self::getName(), $childTable, $tmpChildCol, $nulls
+                        self::getName(),
+                        $childTable,
+                        $tmpChildCol,
+                        $nulls
                     ));
                 }
                 $pdo->exec(sprintf(
                     "ALTER TABLE `%s` MODIFY `%s` CHAR(36) NOT NULL",
-                    $this->qt($childTable), $this->qt($tmpChildCol)
+                    $this->qt($childTable),
+                    $this->qt($tmpChildCol)
                 ));
             }
 
             // drop old legacy int FK column and rename tmp → original name
             if ($this->columnExists($pdo, $childTable, $childCol)) {
-                $pdo->exec(sprintf("ALTER TABLE `%s` DROP COLUMN `%s`",
-                    $this->qt($childTable), $this->qt($childCol)
+                $pdo->exec(sprintf(
+                    "ALTER TABLE `%s` DROP COLUMN `%s`",
+                    $this->qt($childTable),
+                    $this->qt($childCol)
                 ));
             }
             // rename tmp to original FK column name
             $newNullSql = $oldWasNullable ? 'NULL' : 'NOT NULL';
             $pdo->exec(sprintf(
                 "ALTER TABLE `%s` CHANGE `%s` `%s` CHAR(36) %s",
-                $this->qt($childTable), $this->qt($tmpChildCol), $this->qt($childCol), $newNullSql
+                $this->qt($childTable),
+                $this->qt($tmpChildCol),
+                $this->qt($childCol),
+                $newNullSql
             ));
 
             // add final FK child.<col> → parent.id (now CHAR(36) PK)
             $finalFk = $this->makeConstraintName($childTable, $childCol, $parent, 'id_fk');
-            if (!$this->fkNameExists($pdo, $finalFk)) {
+            if (! $this->fkNameExists($pdo, $finalFk)) {
                 $pdo->exec(sprintf(
                     "ALTER TABLE `%s` ADD CONSTRAINT `%s` FOREIGN KEY (`%s`) REFERENCES `%s`(`%s`)",
-                    $this->qt($childTable), $this->qt($finalFk),
-                    $this->qt($childCol), $this->qt($parent), $this->qt($parentPk)
+                    $this->qt($childTable),
+                    $this->qt($finalFk),
+                    $this->qt($childCol),
+                    $this->qt($parent),
+                    $this->qt($parentPk)
                 ));
             }
         }
     }
-
-
-
-
 }

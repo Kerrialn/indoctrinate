@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Indoctrinate\Rule\Integrity;
@@ -40,13 +41,13 @@ final class ConvertTemporalColumnsToDatetimeRule implements RuleInterface
     {
         $results = [];
 
-        $onlyTables = array_map('strtolower', (array)($ctx['only_tables'] ?? []));
-        $onlyLike = (array)($ctx['only_table_like'] ?? []);
-        $skipTables = array_map('strtolower', (array)($ctx['skip_tables'] ?? []));
-        $skipLike = (array)($ctx['skip_table_like'] ?? ['%tmp%', '%temp%', '%cache%']);
-        $dry = (bool)($ctx['dry'] ?? false);
-        $debug = (bool)($ctx['debug'] ?? false);
-        $keepCurrentTs = (bool)($ctx['keep_current_timestamp'] ?? false);
+        $onlyTables = array_map('strtolower', (array) ($ctx['only_tables'] ?? []));
+        $onlyLike = (array) ($ctx['only_table_like'] ?? []);
+        $skipTables = array_map('strtolower', (array) ($ctx['skip_tables'] ?? []));
+        $skipLike = (array) ($ctx['skip_table_like'] ?? ['%tmp%', '%temp%', '%cache%']);
+        $dry = (bool) ($ctx['dry'] ?? false);
+        $debug = (bool) ($ctx['debug'] ?? false);
+        $keepCurrentTs = (bool) ($ctx['keep_current_timestamp'] ?? false);
 
         $allow = function (string $table) use ($onlyTables, $onlyLike, $skipTables, $skipLike): bool {
             $t = strtolower($table);
@@ -70,7 +71,7 @@ final class ConvertTemporalColumnsToDatetimeRule implements RuleInterface
             $table = $c['TABLE_NAME'];
             $col = $c['COLUMN_NAME'];
             $dtype = strtolower($c['DATA_TYPE']);           // date|datetime|timestamp
-            $nullable = strtoupper((string)$c['IS_NULLABLE']) === 'YES';
+            $nullable = strtoupper((string) $c['IS_NULLABLE']) === 'YES';
             $default = $c['COLUMN_DEFAULT'];
 
             // Already DATETIME → only fix defaults if necessary
@@ -85,15 +86,22 @@ final class ConvertTemporalColumnsToDatetimeRule implements RuleInterface
             if ($dtype === 'date') {
                 $nullSql = $nullable ? 'NULL' : 'NOT NULL';
                 $defSql = $this->normalizeDefaultForDatetime($default, $nullable, false, $keepCurrentTs);
-                $alter = sprintf("ALTER TABLE `%s` MODIFY `%s` DATETIME %s %s",
-                    $this->qt($table), $this->qt($col), $nullSql, $defSql
+                $alter = sprintf(
+                    "ALTER TABLE `%s` MODIFY `%s` DATETIME %s %s",
+                    $this->qt($table),
+                    $this->qt($col),
+                    $nullSql,
+                    $defSql
                 );
                 $this->maybeExec($pdo, $out, $dry, $alter, $results, $table, $col, 'MODIFY DATE→DATETIME');
 
                 // ensure time portion is 00:00:00 (explicit)
                 $sql = sprintf(
                     "UPDATE `%s` SET `%s` = DATE_FORMAT(`%s`, '%%Y-%%m-%%d 00:00:00') WHERE `%s` IS NOT NULL",
-                    $this->qt($table), $this->qt($col), $this->qt($col), $this->qt($col)
+                    $this->qt($table),
+                    $this->qt($col),
+                    $this->qt($col),
+                    $this->qt($col)
                 );
                 $this->maybeExec($pdo, $out, $dry, $sql, $results, $table, $col, 'set time to 00:00:00');
                 continue;
@@ -103,8 +111,12 @@ final class ConvertTemporalColumnsToDatetimeRule implements RuleInterface
             if ($dtype === 'timestamp') {
                 $nullSql = $nullable ? 'NULL' : 'NOT NULL';
                 $defSql = $this->normalizeDefaultForDatetime($default, $nullable, true, $keepCurrentTs);
-                $alter = sprintf("ALTER TABLE `%s` MODIFY `%s` DATETIME %s %s",
-                    $this->qt($table), $this->qt($col), $nullSql, $defSql
+                $alter = sprintf(
+                    "ALTER TABLE `%s` MODIFY `%s` DATETIME %s %s",
+                    $this->qt($table),
+                    $this->qt($col),
+                    $nullSql,
+                    $defSql
                 );
                 // ON UPDATE is dropped implicitly when moving to DATETIME
                 $this->maybeExec($pdo, $out, $dry, $alter, $results, $table, $col, 'MODIFY TIMESTAMP→DATETIME');
@@ -120,36 +132,45 @@ final class ConvertTemporalColumnsToDatetimeRule implements RuleInterface
         return $results;
     }
 
-    /** @return array<string,string> */
-    private function buildDefaultFixSql(string $table, string $col, bool $nullable, mixed $default, bool $wasTimestamp, bool $keepCurrentTs): array
+    /**
+     * @return array<string,string>
+     * @param mixed $default
+     */
+    private function buildDefaultFixSql(string $table, string $col, bool $nullable, $default, bool $wasTimestamp, bool $keepCurrentTs): array
     {
         $sqls = [];
 
         // Normalize empty/zero defaults → drop or NULL
-        if ($default === '' || $default === '0000-00-00' || str_starts_with((string)$default, '0000-00-00')) {
+        if ($default === '' || $default === '0000-00-00' || strncmp((string) $default, '0000-00-00', strlen('0000-00-00')) === 0) {
             $sqls['drop zero/empty DEFAULT'] = sprintf(
                 "ALTER TABLE `%s` ALTER COLUMN `%s` %s",
-                $this->qt($table), $this->qt($col), $nullable ? "SET DEFAULT NULL" : "DROP DEFAULT"
+                $this->qt($table),
+                $this->qt($col),
+                $nullable ? "SET DEFAULT NULL" : "DROP DEFAULT"
             );
             return $sqls;
         }
 
-        if ($wasTimestamp && \is_string($default) && strtoupper($default) === 'CURRENT_TIMESTAMP' && !$keepCurrentTs) {
+        if ($wasTimestamp && \is_string($default) && strtoupper($default) === 'CURRENT_TIMESTAMP' && ! $keepCurrentTs) {
             $sqls['drop CURRENT_TIMESTAMP DEFAULT'] = sprintf(
                 "ALTER TABLE `%s` ALTER COLUMN `%s` DROP DEFAULT",
-                $this->qt($table), $this->qt($col)
+                $this->qt($table),
+                $this->qt($col)
             );
         }
 
         return $sqls;
     }
 
-    private function normalizeDefaultForDatetime(mixed $default, bool $nullable, bool $wasTimestamp, bool $keepCurrentTs): string
+    /**
+     * @param mixed $default
+     */
+    private function normalizeDefaultForDatetime($default, bool $nullable, bool $wasTimestamp, bool $keepCurrentTs): string
     {
-        if ($default === null || $default === '' || str_starts_with((string)$default, '0000-00-00')) {
+        if ($default === null || $default === '' || strncmp((string) $default, '0000-00-00', strlen('0000-00-00')) === 0) {
             return $nullable ? 'DEFAULT NULL' : '';
         }
-        if ($wasTimestamp && \is_string($default) && strtoupper($default) === 'CURRENT_TIMESTAMP' && !$keepCurrentTs) {
+        if ($wasTimestamp && \is_string($default) && strtoupper($default) === 'CURRENT_TIMESTAMP' && ! $keepCurrentTs) {
             return $nullable ? 'DEFAULT NULL' : '';
         }
         if (\is_string($default) && strtoupper($default) !== 'CURRENT_TIMESTAMP') {
@@ -188,7 +209,7 @@ final class ConvertTemporalColumnsToDatetimeRule implements RuleInterface
     private function likeMatch(string $table, string $likePattern): bool
     {
         $re = '~^' . str_replace(['%', '_'], ['.*', '.'], preg_quote($likePattern, '~')) . '$~i';
-        return (bool)preg_match($re, $table);
+        return (bool) preg_match($re, $table);
     }
 
     private function qt(string $ident): string

@@ -1,17 +1,19 @@
 <?php
+
 // src/Config/IndoctrinateConfig.php
 declare(strict_types=1);
 
 namespace Indoctrinate\Config;
 
-use InvalidArgumentException;
-use Indoctrinate\Set\Contract\SetInterface;
-use Indoctrinate\Rule\Contract\RuleInterface;
 use Indoctrinate\Rule\Contract\RuleConstraintInterface;
+use Indoctrinate\Rule\Contract\RuleInterface;
+use Indoctrinate\Set\Contract\SetInterface;
+use InvalidArgumentException;
 
 final class IndoctrinateConfig
 {
     private ?Context $context = null;
+
     private ?ConnectionCredentials $credentials = null;
 
     /**
@@ -34,7 +36,7 @@ final class IndoctrinateConfig
     public function connection(
         string $driver,
         string $host,
-        int    $port,
+        int $port,
         string $dbname,
         string $user,
         string $password
@@ -60,7 +62,7 @@ final class IndoctrinateConfig
 
     public function getDsn(): string
     {
-        if (!$this->credentials instanceof \Indoctrinate\Config\ConnectionCredentials) {
+        if (! $this->credentials instanceof \Indoctrinate\Config\ConnectionCredentials) {
             throw new \RuntimeException('No connection configured.');
         }
         return sprintf(
@@ -72,14 +74,16 @@ final class IndoctrinateConfig
         );
     }
 
-    /** @param array<class-string<SetInterface>, array<class-string<RuleInterface>, RuleConstraintInterface|null>> $defs */
+    /**
+     * @param array<class-string<SetInterface>, array<class-string<RuleInterface>, RuleConstraintInterface|null>> $defs
+     */
     public function sets(array $defs): self
     {
         foreach ($defs as $setClass => $ruleMap) {
-            if (!class_exists($setClass) || !is_subclass_of($setClass, SetInterface::class)) {
+            if (! class_exists($setClass) || ! is_subclass_of($setClass, SetInterface::class)) {
                 throw new InvalidArgumentException("Set '{$setClass}' must implement SetInterface.");
             }
-            if (!is_array($ruleMap)) {
+            if (! is_array($ruleMap)) {
                 throw new InvalidArgumentException("Value for set '{$setClass}' must be an array of [RuleFQCN => Constraint|null].");
             }
             foreach ($ruleMap as $ruleClass => $constraint) {
@@ -107,13 +111,17 @@ final class IndoctrinateConfig
         return $this;
     }
 
-    /** @return array<class-string<SetInterface>, array<class-string<RuleInterface>, RuleConstraintInterface|null>> */
+    /**
+     * @return array<class-string<SetInterface>, array<class-string<RuleInterface>, RuleConstraintInterface|null>>
+     */
     public function getSets(): array
     {
         return $this->sets;
     }
 
-    /** @return array<class-string<RuleInterface>, RuleConstraintInterface|null> */
+    /**
+     * @return array<class-string<RuleInterface>, RuleConstraintInterface|null>
+     */
     public function getRules(): array
     {
         return $this->rules;
@@ -125,10 +133,10 @@ final class IndoctrinateConfig
      */
     private function assertRulePair($ruleClass, $constraint): void
     {
-        if (!is_string($ruleClass) || !class_exists($ruleClass) || !is_subclass_of($ruleClass, RuleInterface::class)) {
+        if (! is_string($ruleClass) || ! class_exists($ruleClass) || ! is_subclass_of($ruleClass, RuleInterface::class)) {
             throw new InvalidArgumentException("Rule '{$ruleClass}' must implement RuleInterface.");
         }
-        if ($constraint !== null && !($constraint instanceof RuleConstraintInterface)) {
+        if ($constraint !== null && ! ($constraint instanceof RuleConstraintInterface)) {
             $t = get_debug_type($constraint);
             throw new InvalidArgumentException("Constraint for '{$ruleClass}' must be RuleConstraintInterface|null, got {$t}.");
         }
@@ -144,14 +152,14 @@ final class IndoctrinateConfig
             ? array_is_list($defs)
             : ($defs === [] || array_keys($defs) === range(0, count($defs) - 1));
 
-        if (!$isList) {
+        if (! $isList) {
             /** @var array<class-string<RuleInterface>, RuleConstraintInterface|null> $defs */
             return $defs;
         }
 
         $out = [];
         foreach ($defs as $i => $pair) {
-            if (!is_array($pair) || count($pair) !== 1) {
+            if (! is_array($pair) || count($pair) !== 1) {
                 throw new InvalidArgumentException("rules()[{$i}] must be a single-element array like [RuleFQCN => Constraint|null].");
             }
             foreach ($pair as $ruleClass => $constraint) {

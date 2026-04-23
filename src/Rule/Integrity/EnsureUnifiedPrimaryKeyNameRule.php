@@ -40,12 +40,12 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
     {
         $results = [];
 
-        $onlyTables = array_map('strtolower', (array)($context['only_tables'] ?? []));
-        $onlyLike   = (array)($context['only_table_like'] ?? []);
-        $skipTables = array_map('strtolower', (array)($context['skip_tables'] ?? []));
-        $skipLike   = (array)($context['skip_table_like'] ?? ['%session%', '%sessions%', '%tmp%', '%temp%', '%cache%']);
-        $debug      = (bool)($context['debug'] ?? false);
-        $dry        = (bool)($context['dry'] ?? false);
+        $onlyTables = array_map('strtolower', (array) ($context['only_tables'] ?? []));
+        $onlyLike = (array) ($context['only_table_like'] ?? []);
+        $skipTables = array_map('strtolower', (array) ($context['skip_tables'] ?? []));
+        $skipLike = (array) ($context['skip_table_like'] ?? ['%session%', '%sessions%', '%tmp%', '%temp%', '%cache%']);
+        $debug = (bool) ($context['debug'] ?? false);
+        $dry = (bool) ($context['dry'] ?? false);
 
         $allow = function (string $table) use ($onlyTables, $onlyLike, $skipTables, $skipLike): bool {
             $t = strtolower($table);
@@ -83,7 +83,7 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
             }
 
             $uuidInfo = $this->getColumnInfo($pdo, $table, 'uuid');
-            if (!$uuidInfo || !$this->isChar36((string)$uuidInfo['COLUMN_TYPE'])) {
+            if (! $uuidInfo || ! $this->isChar36((string) $uuidInfo['COLUMN_TYPE'])) {
                 if ($debug) {
                     $output->writeln("[$table] skip: `uuid` not CHAR(36)");
                 }
@@ -92,12 +92,12 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
 
             // 0) Ensure `id` exists and is populated from `uuid` (nullable until PK switch).
             if ($dry) {
-                if (!$this->columnExists($pdo, $table, 'id')) {
+                if (! $this->columnExists($pdo, $table, 'id')) {
                     $output->writeln("[$table] DRY: WOULD ADD `id` CHAR(36) NULL");
                 }
                 $output->writeln("[$table] DRY: WOULD backfill `id` = `uuid` WHERE `id` IS NULL OR = ''");
             } else {
-                if (!$this->columnExists($pdo, $table, 'id')) {
+                if (! $this->columnExists($pdo, $table, 'id')) {
                     $pdo->exec(sprintf("ALTER TABLE `%s` ADD COLUMN `id` CHAR(36) NULL", $this->qt($table)));
                 }
                 $pdo->exec(sprintf(
@@ -112,13 +112,14 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
             // 2) Drop child FKs to unblock PK change
             foreach ($children as $fk) {
                 $childTable = $fk['TABLE_NAME'];
-                $fkName     = $fk['CONSTRAINT_NAME'];
+                $fkName = $fk['CONSTRAINT_NAME'];
                 if ($dry) {
                     $output->writeln("[$childTable] DRY: WOULD DROP FOREIGN KEY `{$fkName}` (→ {$table}.uuid)");
                 } else {
                     $pdo->exec(sprintf(
                         "ALTER TABLE `%s` DROP FOREIGN KEY `%s`",
-                        $this->qt($childTable), $this->qt($fkName)
+                        $this->qt($childTable),
+                        $this->qt($fkName)
                     ));
                 }
             }
@@ -136,24 +137,29 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
 
             // 4) Recreate child FKs to reference <table>.id
             foreach ($children as $fk) {
-                $childTable = (string)$fk['TABLE_NAME'];
-                $childCol   = (string)$fk['COLUMN_NAME'];
-                $origName   = (string)$fk['CONSTRAINT_NAME']; // re-use original name to avoid duplicate-name collisions
-                $onDelete   = strtoupper((string)($fk['DELETE_RULE'] ?? 'RESTRICT'));
-                $onUpdate   = strtoupper((string)($fk['UPDATE_RULE'] ?? 'RESTRICT'));
+                $childTable = (string) $fk['TABLE_NAME'];
+                $childCol = (string) $fk['COLUMN_NAME'];
+                $origName = (string) $fk['CONSTRAINT_NAME']; // re-use original name to avoid duplicate-name collisions
+                $onDelete = strtoupper((string) ($fk['DELETE_RULE'] ?? 'RESTRICT'));
+                $onUpdate = strtoupper((string) ($fk['UPDATE_RULE'] ?? 'RESTRICT'));
 
                 // Ensure child column is indexed (required by MySQL)
-                if (!$dry && !$this->hasIndexOnColumns($pdo, $childTable, [$childCol], false)) {
+                if (! $dry && ! $this->hasIndexOnColumns($pdo, $childTable, [$childCol], false)) {
                     $idxName = $this->makeConstraintName($childTable, $childCol, 'idx');
                     $pdo->exec(sprintf(
                         "ALTER TABLE `%s` ADD INDEX `%s` (`%s`)",
-                        $this->qt($childTable), $this->qt($idxName), $this->qt($childCol)
+                        $this->qt($childTable),
+                        $this->qt($idxName),
+                        $this->qt($childCol)
                     ));
                 }
 
                 $fkSql = sprintf(
                     "ALTER TABLE `%s` ADD CONSTRAINT `%s` FOREIGN KEY (`%s`) REFERENCES `%s`(`id`)",
-                    $this->qt($childTable), $this->qt($origName), $this->qt($childCol), $this->qt($table)
+                    $this->qt($childTable),
+                    $this->qt($origName),
+                    $this->qt($childCol),
+                    $this->qt($table)
                 );
 
                 if ($onDelete && $onDelete !== 'NO ACTION') $fkSql .= " ON DELETE $onDelete";
@@ -189,7 +195,7 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
     private function likeMatch(string $table, string $likePattern): bool
     {
         $re = '~^' . str_replace(['%', '_'], ['.*', '.'], preg_quote($likePattern, '~')) . '$~i';
-        return (bool)preg_match($re, $table);
+        return (bool) preg_match($re, $table);
     }
 
     private function columnExists(PDO $pdo, string $table, string $col): bool
@@ -202,8 +208,11 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
               AND COLUMN_NAME = :c
             LIMIT 1
         ");
-        $st->execute([':t' => $table, ':c' => $col]);
-        return (bool)$st->fetchColumn();
+        $st->execute([
+            ':t' => $table,
+            ':c' => $col,
+        ]);
+        return (bool) $st->fetchColumn();
     }
 
     private function hasIndexOnColumns(PDO $pdo, string $table, array $cols, bool $requireUnique): bool
@@ -211,16 +220,16 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
         $rows = $pdo->query(sprintf("SHOW INDEX FROM `%s`", $this->qt($table)))->fetchAll(PDO::FETCH_ASSOC);
         $byIdx = [];
         foreach ($rows as $r) {
-            $key = (string)($r['Key_name'] ?? '');
-            $seq = (int)($r['Seq_in_index'] ?? 0);
-            $col = strtolower((string)($r['Column_name'] ?? ''));
-            $byIdx[$key]['_unique'] = ((int)($r['Non_unique'] ?? 1) === 0);
+            $key = (string) ($r['Key_name'] ?? '');
+            $seq = (int) ($r['Seq_in_index'] ?? 0);
+            $col = strtolower((string) ($r['Column_name'] ?? ''));
+            $byIdx[$key]['_unique'] = ((int) ($r['Non_unique'] ?? 1) === 0);
             $byIdx[$key][$seq] = $col;
         }
         $needle = array_map('strtolower', $cols);
         foreach ($byIdx as $info) {
-            $isUnique = (bool)($info['_unique'] ?? false);
-            if ($requireUnique && !$isUnique) continue;
+            $isUnique = (bool) ($info['_unique'] ?? false);
+            if ($requireUnique && ! $isUnique) continue;
             unset($info['_unique']);
             ksort($info);
             if (array_values($info) === $needle) return true;
@@ -245,7 +254,10 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
               AND k.REFERENCED_TABLE_NAME = :parent
               AND k.REFERENCED_COLUMN_NAME = :pk
         ");
-        $st->execute([':parent' => $parentTable, ':pk' => $parentPkCol]);
+        $st->execute([
+            ':parent' => $parentTable,
+            ':pk' => $parentPkCol,
+        ]);
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
@@ -263,7 +275,9 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
               AND c.CONSTRAINT_TYPE='PRIMARY KEY'
             ORDER BY k.ORDINAL_POSITION
         ");
-        $stmt->execute([':t' => $table]);
+        $stmt->execute([
+            ':t' => $table,
+        ]);
         return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'COLUMN_NAME');
     }
 
@@ -277,14 +291,17 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
               AND COLUMN_NAME = :c
             LIMIT 1
         ");
-        $st->execute([':t' => $table, ':c' => $col]);
+        $st->execute([
+            ':t' => $table,
+            ':c' => $col,
+        ]);
         $row = $st->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
     }
 
     private function isChar36(string $columnType): bool
     {
-        return (bool)preg_match('/^char\s*\(\s*36\s*\)/i', trim($columnType));
+        return (bool) preg_match('/^char\s*\(\s*36\s*\)/i', trim($columnType));
     }
 
     private function makeConstraintName(string ...$parts): string
@@ -303,5 +320,4 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
     {
         return str_replace('`', '``', $ident);
     }
-
 }

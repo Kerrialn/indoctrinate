@@ -8,18 +8,22 @@ final class Context
      * @readonly
      */
     private bool $isDry = false;
+
     /**
      * @readonly
      */
     private bool $isProd = false;
+
     /**
      * @readonly
      */
     private ?string $logDir = null;
+
     /**
      * @readonly
      */
     private string $configFilePath = '';
+
     /**
      * @readonly
      * @var string|null
@@ -59,5 +63,4 @@ final class Context
     {
         return $this->dsn;
     }
-
 }

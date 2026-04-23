@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Indoctrinate\Rule\Integrity;
@@ -40,15 +41,15 @@ final class NormalizeTemporalValuesRule implements RuleInterface
     {
         $results = [];
 
-        $onlyTables = array_map('strtolower', (array)($ctx['only_tables'] ?? []));
-        $onlyLike = (array)($ctx['only_table_like'] ?? []);
-        $skipTables = array_map('strtolower', (array)($ctx['skip_tables'] ?? []));
-        $skipLike = (array)($ctx['skip_table_like'] ?? ['%tmp%', '%temp%', '%cache%']);
-        $dry = (bool)($ctx['dry'] ?? false);
-        $debug = (bool)($ctx['debug'] ?? false);
+        $onlyTables = array_map('strtolower', (array) ($ctx['only_tables'] ?? []));
+        $onlyLike = (array) ($ctx['only_table_like'] ?? []);
+        $skipTables = array_map('strtolower', (array) ($ctx['skip_tables'] ?? []));
+        $skipLike = (array) ($ctx['skip_table_like'] ?? ['%tmp%', '%temp%', '%cache%']);
+        $dry = (bool) ($ctx['dry'] ?? false);
+        $debug = (bool) ($ctx['debug'] ?? false);
 
-        $zeroStrategy = (string)($ctx['zero_date_strategy'] ?? 'null'); // 'null'|'min'
-        $minDateTime = (string)($ctx['min_datetime'] ?? '1970-01-01 00:00:00');
+        $zeroStrategy = (string) ($ctx['zero_date_strategy'] ?? 'null'); // 'null'|'min'
+        $minDateTime = (string) ($ctx['min_datetime'] ?? '1970-01-01 00:00:00');
 
         $allow = function (string $table) use ($onlyTables, $onlyLike, $skipTables, $skipLike): bool {
             $t = strtolower($table);
@@ -72,12 +73,15 @@ final class NormalizeTemporalValuesRule implements RuleInterface
             $table = $c['TABLE_NAME'];
             $col = $c['COLUMN_NAME'];
             $dtype = strtolower($c['DATA_TYPE']);          // date|datetime|timestamp
-            $nullable = strtoupper((string)$c['IS_NULLABLE']) === 'YES';
+            $nullable = strtoupper((string) $c['IS_NULLABLE']) === 'YES';
 
             // 1) Empty string → NULL (where allowed)
             if ($nullable) {
-                $sql = sprintf("UPDATE `%s` SET `%s` = NULL WHERE `%s` = ''",
-                    $this->qt($table), $this->qt($col), $this->qt($col)
+                $sql = sprintf(
+                    "UPDATE `%s` SET `%s` = NULL WHERE `%s` = ''",
+                    $this->qt($table),
+                    $this->qt($col),
+                    $this->qt($col)
                 );
                 $this->maybeExec($pdo, $out, $dry, $sql, $results, $table, $col, "empty-string → NULL");
             }
@@ -93,8 +97,14 @@ final class NormalizeTemporalValuesRule implements RuleInterface
                 : ($dtype === 'date' ? "'" . substr($minDateTime, 0, 10) . "'" : "'{$minDateTime}'");
 
             foreach ($zeroPatterns[$dtype] ?? [] as $p) {
-                $sql = sprintf("UPDATE `%s` SET `%s` = %s WHERE `%s` = %s",
-                    $this->qt($table), $this->qt($col), $repls, $this->qt($col), $p);
+                $sql = sprintf(
+                    "UPDATE `%s` SET `%s` = %s WHERE `%s` = %s",
+                    $this->qt($table),
+                    $this->qt($col),
+                    $repls,
+                    $this->qt($col),
+                    $p
+                );
                 $label = ($zeroStrategy === 'null' ? 'zero→NULL' : "zero→{$repls}");
                 $this->maybeExec($pdo, $out, $dry, $sql, $results, $table, $col, $label);
             }
@@ -103,7 +113,10 @@ final class NormalizeTemporalValuesRule implements RuleInterface
             if ($dtype !== 'date') {
                 $sql = sprintf(
                     "UPDATE `%s` SET `%s` = DATE_FORMAT(`%s`, '%%Y-%%m-%%d %%H:%%i:%%s') WHERE `%s` LIKE '%%%%.%%%%%%'",
-                    $this->qt($table), $this->qt($col), $this->qt($col), $this->qt($col)
+                    $this->qt($table),
+                    $this->qt($col),
+                    $this->qt($col),
+                    $this->qt($col)
                 );
                 $this->maybeExec($pdo, $out, $dry, $sql, $results, $table, $col, 'strip microseconds');
             }
@@ -146,7 +159,7 @@ final class NormalizeTemporalValuesRule implements RuleInterface
     private function likeMatch(string $table, string $likePattern): bool
     {
         $re = '~^' . str_replace(['%', '_'], ['.*', '.'], preg_quote($likePattern, '~')) . '$~i';
-        return (bool)preg_match($re, $table);
+        return (bool) preg_match($re, $table);
     }
 
     private function qt(string $ident): string

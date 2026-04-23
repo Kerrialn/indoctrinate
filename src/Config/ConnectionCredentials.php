@@ -8,26 +8,32 @@ final class ConnectionCredentials
      * @readonly
      */
     private string $driver;
+
     /**
      * @readonly
      */
     private string $host;
+
     /**
      * @readonly
      */
     private int $port;
+
     /**
      * @readonly
      */
     private string $database;
+
     /**
      * @readonly
      */
     private string $user;
+
     /**
      * @readonly
      */
     private string $password;
+
     public function __construct(string $driver, string $host, int $port, string $database, string $user, string $password)
     {
         $this->driver = $driver;
@@ -67,5 +73,4 @@ final class ConnectionCredentials
     {
         return $this->password;
     }
-
 }

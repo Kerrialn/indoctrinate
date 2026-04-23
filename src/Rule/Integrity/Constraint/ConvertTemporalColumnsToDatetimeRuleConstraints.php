@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Indoctrinate\Rule\Integrity\Constraint;
@@ -11,16 +12,28 @@ use InvalidArgumentException;
  */
 final class ConvertTemporalColumnsToDatetimeRuleConstraints implements RuleConstraintInterface
 {
-    /** @var string[] */
+    /**
+     * @var string[]
+     */
     private array $onlyTables;
-    /** @var string[] */
+
+    /**
+     * @var string[]
+     */
     private array $onlyTableLike;
-    /** @var string[] */
+
+    /**
+     * @var string[]
+     */
     private array $skipTables;
-    /** @var string[] */
+
+    /**
+     * @var string[]
+     */
     private array $skipTableLike;
 
     private bool $keepCurrentTimestamp;
+
     private bool $debug;
 
     /**
@@ -28,8 +41,6 @@ final class ConvertTemporalColumnsToDatetimeRuleConstraints implements RuleConst
      * @param string[] $onlyTableLike
      * @param string[] $skipTables
      * @param string[] $skipTableLike
-     * @param bool $keepCurrentTimestamp
-     * @param bool $debug
      */
     public function __construct(
         array $onlyTables = [],
@@ -41,29 +52,29 @@ final class ConvertTemporalColumnsToDatetimeRuleConstraints implements RuleConst
     ) {
         foreach ([$onlyTables, $onlyTableLike, $skipTables, $skipTableLike] as $arr) {
             foreach ($arr as $v) {
-                if (!is_string($v) || $v === '') {
+                if (! is_string($v) || $v === '') {
                     throw new InvalidArgumentException('Table lists/patterns must be non-empty strings.');
                 }
             }
         }
 
-        $this->onlyTables           = array_values($onlyTables);
-        $this->onlyTableLike        = array_values($onlyTableLike);
-        $this->skipTables           = array_values($skipTables);
-        $this->skipTableLike        = array_values($skipTableLike);
+        $this->onlyTables = array_values($onlyTables);
+        $this->onlyTableLike = array_values($onlyTableLike);
+        $this->skipTables = array_values($skipTables);
+        $this->skipTableLike = array_values($skipTableLike);
         $this->keepCurrentTimestamp = $keepCurrentTimestamp;
-        $this->debug                = $debug;
+        $this->debug = $debug;
     }
 
     public function toContext(): array
     {
         return [
-            'only_tables'            => $this->onlyTables,
-            'only_table_like'        => $this->onlyTableLike,
-            'skip_tables'            => $this->skipTables,
-            'skip_table_like'        => $this->skipTableLike,
+            'only_tables' => $this->onlyTables,
+            'only_table_like' => $this->onlyTableLike,
+            'skip_tables' => $this->skipTables,
+            'skip_table_like' => $this->skipTableLike,
             'keep_current_timestamp' => $this->keepCurrentTimestamp,
-            'debug'                  => $this->debug,
+            'debug' => $this->debug,
         ];
     }
 }

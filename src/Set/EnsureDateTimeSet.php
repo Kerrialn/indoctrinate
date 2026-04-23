@@ -1,17 +1,20 @@
 <?php
+
 namespace Indoctrinate\Set;
 
-use Indoctrinate\Set\Contract\SetInterface;
-use Indoctrinate\Rule\Contract\RuleInterface;
 use Indoctrinate\Rule\Contract\RuleConstraintInterface;
-use Indoctrinate\Rule\Integrity\NormalizeTemporalValuesRule;
+use Indoctrinate\Rule\Contract\RuleInterface;
 use Indoctrinate\Rule\Integrity\ConvertTemporalColumnsToDatetimeRule;
+use Indoctrinate\Rule\Integrity\NormalizeTemporalValuesRule;
+use Indoctrinate\Set\Contract\SetInterface;
 use PDO;
 use Symfony\Component\Console\Output\OutputInterface;
 
 final class EnsureDateTimeSet implements SetInterface
 {
-    /** @var array<class-string<RuleInterface>, RuleConstraintInterface> */
+    /**
+     * @var array<class-string<RuleInterface>, RuleConstraintInterface>
+     */
     private array $constraints = [];
 
     public function getName(): string
@@ -24,7 +27,9 @@ final class EnsureDateTimeSet implements SetInterface
         return 'Normalise legacy DATE/DATETIME/TIMESTAMP values, then convert all temporal columns to DATETIME.';
     }
 
-    /** @return array<int, class-string<RuleInterface>> */
+    /**
+     * @return array<int, class-string<RuleInterface>>
+     */
     public function getRules(): array
     {
         // Order matters: clean data first, then convert types
@@ -34,7 +39,9 @@ final class EnsureDateTimeSet implements SetInterface
         ];
     }
 
-    /** @param array<class-string<RuleInterface>, RuleConstraintInterface> $map */
+    /**
+     * @param array<class-string<RuleInterface>, RuleConstraintInterface> $map
+     */
     public function config(array $map): void
     {
         $this->constraints = $map;

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Indoctrinate\Rule\Normalization;
@@ -18,7 +19,9 @@ final class SlugifyFieldRule implements RuleInterface
     {
         return 'creates a slug column from a source column, and ensures it is unique';
     }
+
     public static function getCategory(): string { return 'Normalization'; }
+
     public static function isDestructive(): bool { return false; }
 
     /**
@@ -38,17 +41,17 @@ final class SlugifyFieldRule implements RuleInterface
     {
         $ctx = $this->normalizeContext($context);
 
-        $table       = $ctx['table'];
-        $src         = $ctx['sourceField'];
-        $dst         = $ctx['targetField'];
-        $len         = $ctx['targetLength'];
-        $lower       = $ctx['lowercase'];
-        $sep         = $ctx['separator'];
-        $overwrite   = $ctx['overwriteExisting'];
+        $table = $ctx['table'];
+        $src = $ctx['sourceField'];
+        $dst = $ctx['targetField'];
+        $len = $ctx['targetLength'];
+        $lower = $ctx['lowercase'];
+        $sep = $ctx['separator'];
+        $overwrite = $ctx['overwriteExisting'];
         $createIndex = $ctx['createIndex'];
-        $unique      = $ctx['unique'];
-        $batchSize   = $ctx['batchSize'];
-        $dry         = (bool)$ctx['dry']; // <-- single flag
+        $unique = $ctx['unique'];
+        $batchSize = $ctx['batchSize'];
+        $dry = (bool) $ctx['dry']; // <-- single flag
 
         $results = [];
 
@@ -56,14 +59,16 @@ final class SlugifyFieldRule implements RuleInterface
         $this->assertColumnExists($pdo, $table, $src);
 
         // WRITE #1: add column (guarded)
-        if (!$this->columnExists($pdo, $table, $dst)) {
+        if (! $this->columnExists($pdo, $table, $dst)) {
             if ($dry) {
                 $output->writeln(sprintf('[%s] DRY: WOULD add `%s`.`%s` VARCHAR(%d)', self::getName(), $table, $dst, $len));
                 $results[] = new Log(self::getName(), $table, $dst, "DRY: would add column VARCHAR($len)", 'SKIPPED');
             } else {
                 $pdo->exec(sprintf(
                     "ALTER TABLE `%s` ADD COLUMN `%s` VARCHAR(%d) NULL",
-                    $this->qt($table), $this->qt($dst), $len
+                    $this->qt($table),
+                    $this->qt($dst),
+                    $len
                 ));
                 $output->writeln(sprintf('[%s] added `%s`.`%s` VARCHAR(%d)', self::getName(), $table, $dst, $len));
                 $results[] = new Log(self::getName(), $table, $dst, "added column VARCHAR($len)", 'OK');
@@ -80,16 +85,16 @@ final class SlugifyFieldRule implements RuleInterface
         // WRITE #2: index creation (guarded)
         if ($createIndex) {
             $haveUnique = $this->hasIndex($pdo, $table, $dst, true);
-            $haveAny    = $haveUnique || $this->hasIndex($pdo, $table, $dst, false);
+            $haveAny = $haveUnique || $this->hasIndex($pdo, $table, $dst, false);
 
-            if ($unique && !$haveUnique) {
+            if ($unique && ! $haveUnique) {
                 if ($dry) {
                     $output->writeln(sprintf('[%s] DRY: WOULD create UNIQUE index on `%s`.`%s`', self::getName(), $table, $dst));
                     $results[] = new Log(self::getName(), $table, $dst, 'DRY: would create UNIQUE index', 'SKIPPED');
                 } else {
                     $this->ensureIndex($pdo, $table, $dst, true, $results, $output);
                 }
-            } elseif (!$unique && !$haveAny) {
+            } elseif (! $unique && ! $haveAny) {
                 if ($dry) {
                     $output->writeln(sprintf('[%s] DRY: WOULD create index on `%s`.`%s`', self::getName(), $table, $dst));
                     $results[] = new Log(self::getName(), $table, $dst, 'DRY: would create NON-UNIQUE index', 'SKIPPED');
@@ -105,9 +110,10 @@ final class SlugifyFieldRule implements RuleInterface
             : sprintf("(`%s` IS NULL OR `%s` = '')", $this->qt($dst), $this->qt($dst));
 
         // Count candidates
-        $toProcess = (int)$pdo->query(sprintf(
+        $toProcess = (int) $pdo->query(sprintf(
             "SELECT COUNT(*) FROM `%s` WHERE %s",
-            $this->qt($table), $where
+            $this->qt($table),
+            $where
         ))->fetchColumn();
 
         if ($dry) {
@@ -126,12 +132,17 @@ final class SlugifyFieldRule implements RuleInterface
               WHERE %s
               ORDER BY `%s` ASC
               LIMIT :limit OFFSET :offset",
-            $this->qt($pk), $this->qt($src),
-            $this->qt($table), $where, $this->qt($pk)
+            $this->qt($pk),
+            $this->qt($src),
+            $this->qt($table),
+            $where,
+            $this->qt($pk)
         ));
         $update = $pdo->prepare(sprintf(
             "UPDATE `%s` SET `%s` = :slug WHERE `%s` = :id",
-            $this->qt($table), $this->qt($dst), $this->qt($pk)
+            $this->qt($table),
+            $this->qt($dst),
+            $this->qt($pk)
         ));
 
         // Batch update
@@ -142,13 +153,13 @@ final class SlugifyFieldRule implements RuleInterface
             $select->execute();
 
             $rows = $select->fetchAll(PDO::FETCH_ASSOC);
-            if (!$rows) {
+            if (! $rows) {
                 break;
             }
 
             foreach ($rows as $r) {
-                $id  = $r['id'];
-                $val = (string)($r['src'] ?? '');
+                $id = $r['id'];
+                $val = (string) ($r['src'] ?? '');
 
                 $slug = $this->slugify($val, $sep, $lower);
                 $slug = $slug === '' ? null : $this->trimToLength($slug, $len);
@@ -157,7 +168,10 @@ final class SlugifyFieldRule implements RuleInterface
                     $slug = $this->ensureUniqueSlug($pdo, $table, $dst, $slug, $len, $existing);
                 }
 
-                $update->execute([':slug' => $slug, ':id' => $id]);
+                $update->execute([
+                    ':slug' => $slug,
+                    ':id' => $id,
+                ]);
                 $processed++;
             }
 
@@ -165,7 +179,7 @@ final class SlugifyFieldRule implements RuleInterface
         }
 
         // WRITE #3: retry unique index if needed (not dry)
-        if ($createIndex && $unique && !$this->hasIndex($pdo, $table, $dst, true)) {
+        if ($createIndex && $unique && ! $this->hasIndex($pdo, $table, $dst, true)) {
             $this->ensureIndex($pdo, $table, $dst, true, $results, $output);
         }
 
@@ -179,24 +193,24 @@ final class SlugifyFieldRule implements RuleInterface
     {
         // map incoming keys to our internal names
         $map = [
-            'table'              => 'table',
-            'source_field'       => 'sourceField',
-            'sourceField'        => 'sourceField',
-            'target_field'       => 'targetField',
-            'targetField'        => 'targetField',
-            'target_length'      => 'targetLength',
-            'targetLength'       => 'targetLength',
-            'lowercase'          => 'lowercase',
-            'separator'          => 'separator',
+            'table' => 'table',
+            'source_field' => 'sourceField',
+            'sourceField' => 'sourceField',
+            'target_field' => 'targetField',
+            'targetField' => 'targetField',
+            'target_length' => 'targetLength',
+            'targetLength' => 'targetLength',
+            'lowercase' => 'lowercase',
+            'separator' => 'separator',
             'overwrite_existing' => 'overwriteExisting',
-            'overwriteExisting'  => 'overwriteExisting',
-            'create_index'       => 'createIndex',
-            'createIndex'        => 'createIndex',
-            'unique'             => 'unique',
-            'batch_size'         => 'batchSize',
-            'batchSize'          => 'batchSize',
+            'overwriteExisting' => 'overwriteExisting',
+            'create_index' => 'createIndex',
+            'createIndex' => 'createIndex',
+            'unique' => 'unique',
+            'batch_size' => 'batchSize',
+            'batchSize' => 'batchSize',
             // ONLY accept 'dry'
-            'dry'                => 'dry',
+            'dry' => 'dry',
         ];
 
         $out = [];
@@ -208,18 +222,18 @@ final class SlugifyFieldRule implements RuleInterface
 
         // defaults
         $out += [
-            'targetLength'      => 191,
-            'lowercase'         => true,
-            'separator'         => '-',
+            'targetLength' => 191,
+            'lowercase' => true,
+            'separator' => '-',
             'overwriteExisting' => false,
-            'createIndex'       => true,
-            'unique'            => true,
-            'batchSize'         => 1000,
-            'dry'               => false, // single dry flag
+            'createIndex' => true,
+            'unique' => true,
+            'batchSize' => 1000,
+            'dry' => false, // single dry flag
         ];
 
-        foreach (['table','sourceField','targetField'] as $req) {
-            if (!isset($out[$req]) || $out[$req] === '') {
+        foreach (['table', 'sourceField', 'targetField'] as $req) {
+            if (! isset($out[$req]) || $out[$req] === '') {
                 throw new RuntimeException("Missing required context key: $req");
             }
         }
@@ -259,7 +273,7 @@ final class SlugifyFieldRule implements RuleInterface
 
     private function ensureUniqueSlug(PDO $pdo, string $table, string $col, string $slug, int $len, array &$existing): string
     {
-        if (!isset($existing[$slug]) && !$this->slugExists($pdo, $table, $col, $slug)) {
+        if (! isset($existing[$slug]) && ! $this->slugExists($pdo, $table, $col, $slug)) {
             $existing[$slug] = true;
             return $slug;
         }
@@ -267,7 +281,7 @@ final class SlugifyFieldRule implements RuleInterface
         for ($n = 2; ; $n++) {
             $suffix = "-$n";
             $try = $this->trimToLength($base, $len - strlen($suffix)) . $suffix;
-            if (!isset($existing[$try]) && !$this->slugExists($pdo, $table, $col, $try)) {
+            if (! isset($existing[$try]) && ! $this->slugExists($pdo, $table, $col, $try)) {
                 $existing[$try] = true;
                 return $try;
             }
@@ -278,22 +292,28 @@ final class SlugifyFieldRule implements RuleInterface
     {
         $st = $pdo->prepare(sprintf(
             "SELECT 1 FROM `%s` WHERE `%s` = :s LIMIT 1",
-            $this->qt($table), $this->qt($col)
+            $this->qt($table),
+            $this->qt($col)
         ));
-        $st->execute([':s' => $slug]);
-        return (bool)$st->fetchColumn();
+        $st->execute([
+            ':s' => $slug,
+        ]);
+        return (bool) $st->fetchColumn();
     }
 
     private function loadExistingSlugSet(PDO $pdo, string $table, string $col): array
     {
         $rows = $pdo->query(sprintf(
             "SELECT `%s` FROM `%s` WHERE `%s` IS NOT NULL AND `%s` <> ''",
-            $this->qt($col), $this->qt($table), $this->qt($col), $this->qt($col)
+            $this->qt($col),
+            $this->qt($table),
+            $this->qt($col),
+            $this->qt($col)
         ))->fetchAll(PDO::FETCH_COLUMN, 0);
 
         $set = [];
         foreach ($rows as $s) {
-            $set[(string)$s] = true;
+            $set[(string) $s] = true;
         }
         return $set;
     }
@@ -308,18 +328,20 @@ final class SlugifyFieldRule implements RuleInterface
                 AND CONSTRAINT_NAME = 'PRIMARY'
               ORDER BY ORDINAL_POSITION"
         );
-        $st->execute([':t' => $table]);
+        $st->execute([
+            ':t' => $table,
+        ]);
         $cols = $st->fetchAll(PDO::FETCH_COLUMN, 0);
-        return \count($cols) === 1 ? (string)$cols[0] : null;
+        return \count($cols) === 1 ? (string) $cols[0] : null;
     }
 
     private function hasIndex(PDO $pdo, string $table, string $col, bool $unique): bool
     {
         $rows = $pdo->query(sprintf("SHOW INDEX FROM `%s`", $this->qt($table)))->fetchAll(PDO::FETCH_ASSOC);
         foreach ($rows as $r) {
-            if (strcasecmp((string)($r['Column_name'] ?? ''), $col) === 0) {
+            if (strcasecmp((string) ($r['Column_name'] ?? ''), $col) === 0) {
                 if ($unique) {
-                    if ((int)($r['Non_unique'] ?? 1) === 0) {
+                    if ((int) ($r['Non_unique'] ?? 1) === 0) {
                         return true;
                     }
                 } else {
@@ -343,8 +365,13 @@ final class SlugifyFieldRule implements RuleInterface
         try {
             $pdo->exec($sql);
             $results[] = new Log(self::getName(), $table, $col, ($unique ? 'unique ' : '') . 'index created', 'OK');
-            $out->writeln(sprintf('[%s] %s index `%s` created on `%s`.`%s`',
-                self::getName(), $unique ? 'UNIQUE' : 'NON-UNIQUE', $idxName, $table, $col
+            $out->writeln(sprintf(
+                '[%s] %s index `%s` created on `%s`.`%s`',
+                self::getName(),
+                $unique ? 'UNIQUE' : 'NON-UNIQUE',
+                $idxName,
+                $table,
+                $col
             ));
         } catch (\Throwable $e) {
             $results[] = new Log(self::getName(), $table, $col, 'index creation failed', $e->getMessage());
@@ -360,13 +387,16 @@ final class SlugifyFieldRule implements RuleInterface
                 AND TABLE_NAME = :t
                 AND COLUMN_NAME = :c"
         );
-        $st->execute([':t' => $table, ':c' => $col]);
-        return (bool)$st->fetchColumn();
+        $st->execute([
+            ':t' => $table,
+            ':c' => $col,
+        ]);
+        return (bool) $st->fetchColumn();
     }
 
     private function assertColumnExists(PDO $pdo, string $table, string $col): void
     {
-        if (!$this->columnExists($pdo, $table, $col)) {
+        if (! $this->columnExists($pdo, $table, $col)) {
             throw new RuntimeException("Column `$table`.`$col` not found.");
         }
     }
@@ -375,7 +405,6 @@ final class SlugifyFieldRule implements RuleInterface
     {
         return str_replace('`', '``', $ident);
     }
-
 
     public static function getConstraintClass(): ?string
     {
