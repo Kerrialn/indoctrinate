@@ -216,7 +216,7 @@ final class NormalizeIntColumnsRule implements RuleInterface
         $seen = [];
         $out = [];
         foreach ($logs as $log) {
-            $key = $log->getRule() . '|' . $log->getTable() . '|' . $log->getColumn() . '|' . $log->getCurrent() . '|' . $log->getTarget();
+            $key = $log->getRule() . '|' . $log->getTable() . '|' . $log->getColumn() . '|' . $log->getFrom() . '|' . $log->getTo();
             if (! isset($seen[$key])) {
                 $seen[$key] = true;
                 $out[] = $log;
