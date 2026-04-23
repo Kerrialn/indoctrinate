@@ -1,2 +1,0 @@
-[START] DB Fix started at 2025-09-24 16:02:51
-Running set: primary_key_uuid_set — Switch primary keys to UUID (keeping data safe) and then unify the PK column name to `id`.

@@ -1,6 +1,0 @@
-[START] DB Fix started at 2025-09-24 20:13:32
-Running set: primary_key_uuid_set — Switch primary keys to UUID (keeping data safe) and then unify the PK column name to `id`.
-[ensure primary key uuid] default_fields_field.uuid: already CHAR(36) NOT NULL → OK
-[ensure unified primary key name] default_fields_field.uuid→id: done → renamed PK `uuid` to `id`, rebuilt child FKs
-Findings: 2
-[END] DB Fix completed at 2025-09-24 20:13:32

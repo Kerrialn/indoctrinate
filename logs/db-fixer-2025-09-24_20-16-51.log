@@ -1,4 +1,0 @@
-[START] DB Fix started at 2025-09-24 20:16:51
-Running set: primary_key_uuid_set — Switch primary keys to UUID (keeping data safe) and then unify the PK column name to `id`.
-✘ Indoctrinate\Set\EnsurePrimaryKeyUuidSet failed: SQLSTATE[HY000]: General error: 1826 Duplicate foreign key constraint name 'default_fields_field_parent_default_fields_field_id_fk'
-[END] DB Fix completed at 2025-09-24 20:16:52
