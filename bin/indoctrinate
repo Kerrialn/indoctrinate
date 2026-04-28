@@ -2,6 +2,7 @@
 <?php
 
 use Indoctrinate\Command\DatabaseAnalyzerCommand;
+use Indoctrinate\Command\GenerateDocsCommand;
 use Symfony\Component\Console\Application;
 
 $autoloadPaths = [
@@ -25,4 +26,5 @@ if (!class_exists(DatabaseAnalyzerCommand::class)) {
 
 $application = new Application();
 $application->add(new DatabaseAnalyzerCommand());
+$application->add(new GenerateDocsCommand());
 $application->run();

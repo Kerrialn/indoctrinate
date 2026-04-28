@@ -55,10 +55,22 @@ $config->rules([
     
 
 
+## Available Rules & Sets
+
+See **[RULES.md](RULES.md)** for the full list of available rules and sets.
+
+To regenerate it after adding new rules:
+
+```
+php bin/indoctrinate docs
+```
+
 ## Usage
 `php bin/indoctrinate fix`
 
-`php bin/indoctrinate fix --dry` 
+`php bin/indoctrinate fix --dry`
+
+`php bin/indoctrinate fix --report`
 
 ### Options
 ` --log=<log-dir>`
