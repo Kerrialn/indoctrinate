@@ -27,6 +27,10 @@ return static function (IndoctrinateConfig $config): void {
     );
 
     $config->sets([
-        DoctrineCompatibilitySet::class => []
+        EnsurePrimaryKeyUuidSet::class => [
+            EnsurePrimaryKeyUuidRule::class => new EnsurePrimaryKeyUuidRuleConstraints(
+
+            )
+        ]
     ]);
 };
