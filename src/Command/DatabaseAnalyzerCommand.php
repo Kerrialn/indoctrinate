@@ -315,7 +315,7 @@ class DatabaseAnalyzerCommand extends Command
             $io->note('No sets registered.');
         }
 
-        /** @var array<int, array{class:string, RuleConstraintInterface}> $rules */
+        /** @var array<string|int, mixed> $rules */
         $rules = $this->config->getRules();
 
         if (empty($rules)) {
