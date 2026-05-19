@@ -15,6 +15,7 @@ use Symfony\Component\Console\Helper\TableCell;
 use Symfony\Component\Console\Helper\TableSeparator;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Output\NullOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Exception\IOExceptionInterface;
@@ -139,6 +140,90 @@ class DatabaseAnalyzerCommand extends Command
 
         $activeDriver = $pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);
 
+        // ===================== DESTRUCTIVE ACTION PRE-FLIGHT CHECK ==================
+        if (! $isDry && ! $isReport) {
+            $destructiveRules = $this->collectDestructiveRules(
+                $this->config->getSets(),
+                $this->config->getRules(),
+                $activeDriver
+            );
+
+            if ($destructiveRules !== []) {
+                $lines = [
+                    'The following rules will execute DESTRUCTIVE operations (e.g. DROP COLUMN, DROP PRIMARY KEY, DROP FOREIGN KEY):',
+                    '',
+                ];
+                foreach ($destructiveRules as $r) {
+                    $lines[] = "  • {$r['name']} — {$r['description']}";
+                }
+                $lines[] = '';
+                $lines[] = 'These changes cannot be automatically reversed. Ensure you have a backup before proceeding.';
+
+                $label = $isProd ? 'PRODUCTION — DESTRUCTIVE ACTIONS DETECTED' : 'DESTRUCTIVE ACTIONS DETECTED';
+                $io->block($lines, $label, 'error', ' ', true);
+
+                if (! $io->confirm('Do you want to proceed with these destructive operations?', false)) {
+                    $io->warning('Aborted: destructive operations cancelled by user.');
+                    if ($logHandle) {
+                        fwrite($logHandle, "[ABORTED] User cancelled destructive operations at " . date('Y-m-d H:i:s') . PHP_EOL);
+                        fclose($logHandle);
+                    }
+                    return Command::FAILURE;
+                }
+
+                $io->newLine();
+
+                // Phase 2: volume check — silent dry discovery to count affected schema objects
+                $threshold = $this->config->getDestructiveThreshold();
+                $io->writeln('<info>Running discovery pass to assess scale of destructive changes…</info>');
+                $discoveryLogs = $this->runDestructiveDiscovery($pdo, $activeDriver);
+                $discoveryCount = count($discoveryLogs);
+                $io->writeln(sprintf('<info>Discovery complete: %d schema object(s) would be affected.</info>', $discoveryCount));
+                $io->newLine();
+
+                if ($discoveryCount >= $threshold) {
+                    $byRule = [];
+                    foreach ($discoveryLogs as $log) {
+                        $byRule[$log->getRule()][] = $log->getTable() . ($log->getColumn() !== '' ? '.' . $log->getColumn() : '');
+                    }
+
+                    $volumeLines = [
+                        sprintf(
+                            'Discovery found %d schema object(s) that will be modified by destructive rules (threshold: %d).',
+                            $discoveryCount,
+                            $threshold
+                        ),
+                        '',
+                    ];
+                    foreach ($byRule as $rule => $items) {
+                        $volumeLines[] = sprintf('  [%s] %d item(s):', $rule, count($items));
+                        foreach (array_slice($items, 0, 10) as $item) {
+                            $volumeLines[] = "    • {$item}";
+                        }
+                        if (count($items) > 10) {
+                            $volumeLines[] = sprintf('    … and %d more', count($items) - 10);
+                        }
+                    }
+                    $volumeLines[] = '';
+                    $volumeLines[] = 'This is a large-scale change. Verify this is intentional before proceeding.';
+
+                    $label = $isProd ? 'PRODUCTION — HIGH VOLUME DESTRUCTIVE CHANGE' : 'HIGH VOLUME DESTRUCTIVE CHANGE';
+                    $io->block($volumeLines, $label, 'error', ' ', true);
+
+                    if (! $io->confirm(sprintf('Proceed with %d destructive change(s)?', $discoveryCount), false)) {
+                        $io->warning('Aborted: high-volume destructive operation cancelled by user.');
+                        if ($logHandle) {
+                            fwrite($logHandle, "[ABORTED] User cancelled high-volume destructive operation ({$discoveryCount} items) at " . date('Y-m-d H:i:s') . PHP_EOL);
+                            fclose($logHandle);
+                        }
+                        return Command::FAILURE;
+                    }
+
+                    $io->newLine();
+                }
+            }
+        }
+
         // ===================== RUN SETS (with per-rule constraints) ==================
         /** @var array<array{name: string, count: int, group: string}> $reportRows */
         $reportRows = [];
@@ -253,8 +338,11 @@ class DatabaseAnalyzerCommand extends Command
                 $io->success('Report: No findings detected.');
                 return Command::SUCCESS;
             }
-            $io->warning("No rules registered.");
-            $io->success("All rules executed.");
+            if ($sets === []) {
+                $io->warning("No rules or sets registered.");
+            } else {
+                $io->success("All sets executed.");
+            }
             return Command::SUCCESS;
         }
 
@@ -449,10 +537,128 @@ class DatabaseAnalyzerCommand extends Command
 
         $total = array_sum(array_column($rows, 'count'));
         $table->addRow(new TableSeparator());
-        $table->addRow([new TableCell('<options=bold>TOTAL</>', ['colspan' => 2]), new TableCell("<options=bold>{$total}</>"), '']);
+        $table->addRow([new TableCell('<options=bold>TOTAL</>', [
+            'colspan' => 2,
+        ]), new TableCell("<options=bold>{$total}</>"), '']);
 
         $table->render();
         $output->writeln('');
+    }
+
+    /**
+     * Silently run all destructive rules in dry mode to count affected schema objects.
+     *
+     * @return list<\Indoctrinate\Log\Log>
+     */
+    private function runDestructiveDiscovery(\PDO $pdo, string $activeDriver): array
+    {
+        $null = new NullOutput();
+        $allLogs = [];
+
+        foreach ($this->config->getSets() as $class => $rulesConfiguration) {
+            if (! is_string($class) || ! class_exists($class)) {
+                continue;
+            }
+            $set = new $class();
+            if (! $set instanceof SetInterface || $set->isAlwaysDry()) {
+                continue;
+            }
+            $constraints = is_array($rulesConfiguration) ? $rulesConfiguration : [];
+            foreach ($set->getRules() as $ruleClass) {
+                if ($ruleClass::getDriver() !== $activeDriver || ! $ruleClass::isDestructive()) {
+                    continue;
+                }
+                $ruleCtx = ['dry' => true];
+                $constraint = $constraints[$ruleClass] ?? null;
+                if ($constraint instanceof RuleConstraintInterface) {
+                    $ruleCtx = array_replace($ruleCtx, $constraint->toContext());
+                }
+                $allLogs = array_merge($allLogs, (new $ruleClass())->apply($pdo, $null, $ruleCtx));
+            }
+        }
+
+        foreach ($this->config->getRules() as $ruleClass => $constraint) {
+            if (! class_exists($ruleClass) || ! is_a($ruleClass, RuleInterface::class, true)) {
+                continue;
+            }
+            if ($ruleClass::getDriver() !== $activeDriver || ! $ruleClass::isDestructive()) {
+                continue;
+            }
+            $ruleCtx = ['dry' => true];
+            if ($constraint instanceof RuleConstraintInterface) {
+                $ruleCtx = array_replace($ruleCtx, $constraint->toContext());
+            }
+            $allLogs = array_merge($allLogs, (new $ruleClass())->apply($pdo, $null, $ruleCtx));
+        }
+
+        return $allLogs;
+    }
+
+    /**
+     * @param array<string|int, mixed> $sets
+     * @param array<string|int, mixed> $rules
+     * @return list<array{name: string, description: string}>
+     */
+    private function collectDestructiveRules(array $sets, array $rules, string $activeDriver): array
+    {
+        $found = [];
+        $seen = [];
+
+        foreach (array_keys($sets) as $class) {
+            if (! is_string($class) || ! class_exists($class)) {
+                continue;
+            }
+            $set = new $class();
+            if (! $set instanceof SetInterface || $set->isAlwaysDry()) {
+                continue;
+            }
+            foreach ($set->getRules() as $ruleClass) {
+                if ($ruleClass::getDriver() !== $activeDriver || ! $ruleClass::isDestructive() || isset($seen[$ruleClass])) {
+                    continue;
+                }
+                $seen[$ruleClass] = true;
+                $found[] = ['name' => $ruleClass::getName(), 'description' => $ruleClass::getDescription()];
+            }
+        }
+
+        foreach ($rules as $key => $def) {
+            $ruleClass = $this->resolveRuleClass($key, $def);
+            if ($ruleClass === null || ! class_exists($ruleClass) || ! is_a($ruleClass, RuleInterface::class, true)) {
+                continue;
+            }
+            if ($ruleClass::getDriver() !== $activeDriver || ! $ruleClass::isDestructive() || isset($seen[$ruleClass])) {
+                continue;
+            }
+            $seen[$ruleClass] = true;
+            $found[] = ['name' => $ruleClass::getName(), 'description' => $ruleClass::getDescription()];
+        }
+
+        return $found;
+    }
+
+    private function resolveRuleClass(mixed $key, mixed $def): ?string
+    {
+        if (is_string($def) && class_exists($def)) {
+            return $def;
+        }
+        if ($def instanceof RuleConstraintInterface && is_string($key) && class_exists($key)) {
+            return $key;
+        }
+        if (is_array($def)) {
+            if (isset($def['class']) && is_string($def['class'])) {
+                return $def['class'];
+            }
+            if (isset($def[0]) && is_string($def[0])) {
+                return $def[0];
+            }
+            if (is_string($key) && class_exists($key)) {
+                return $key;
+            }
+        }
+        if (is_string($key) && class_exists($key)) {
+            return $key;
+        }
+        return null;
     }
 
     /**

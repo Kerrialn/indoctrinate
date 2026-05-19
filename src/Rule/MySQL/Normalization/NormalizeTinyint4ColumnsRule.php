@@ -41,7 +41,9 @@ final class NormalizeTinyint4ColumnsRule implements RuleInterface
         return null;
     }
 
-    /** @param array<string, mixed> $context */
+    /**
+     * @param array<string, mixed> $context
+     */
     public function apply(PDO $pdo, OutputInterface $output, array $context = []): array
     {
         $stmt = $pdo->query("
@@ -71,11 +73,11 @@ final class NormalizeTinyint4ColumnsRule implements RuleInterface
             }
 
             // Has a display width that should be removed
-            if (!preg_match('/^tinyint\(\d+\)( unsigned)?$/', $type)) {
+            if (! preg_match('/^tinyint\(\d+\)( unsigned)?$/', $type)) {
                 continue;
             }
 
-            $isUnsigned = str_contains($type, 'unsigned');
+            $isUnsigned = strpos($type, 'unsigned') !== false;
             $normalized = $isUnsigned ? 'TINYINT UNSIGNED' : 'TINYINT';
 
             $logs[] = new Log(

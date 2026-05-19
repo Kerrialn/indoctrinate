@@ -9,16 +9,24 @@ use InvalidArgumentException;
 
 final class EnsureIndexOnForeignKeyRuleConstraints implements RuleConstraintInterface
 {
-    /** @var string[] */
+    /**
+     * @var string[]
+     */
     private array $onlyTables;
 
-    /** @var string[] */
+    /**
+     * @var string[]
+     */
     private array $onlyTableLike;
 
-    /** @var string[] */
+    /**
+     * @var string[]
+     */
     private array $skipTables;
 
-    /** @var string[] */
+    /**
+     * @var string[]
+     */
     private array $skipTableLike;
 
     private bool $debug;
@@ -51,7 +59,9 @@ final class EnsureIndexOnForeignKeyRuleConstraints implements RuleConstraintInte
         $this->debug = $debug;
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     */
     public function toContext(): array
     {
         return [

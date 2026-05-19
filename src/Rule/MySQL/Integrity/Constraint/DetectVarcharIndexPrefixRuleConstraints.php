@@ -7,7 +7,7 @@ namespace Indoctrinate\Rule\MySQL\Integrity\Constraint;
 use Indoctrinate\Rule\Contract\RuleConstraintInterface;
 use InvalidArgumentException;
 
-final class EnsureCharsetCollationRuleConstraints implements RuleConstraintInterface
+final class DetectVarcharIndexPrefixRuleConstraints implements RuleConstraintInterface
 {
     /**
      * @var string[]
@@ -31,17 +31,13 @@ final class EnsureCharsetCollationRuleConstraints implements RuleConstraintInter
 
     private string $targetCharset;
 
-    private string $targetCollation;
-
-    private bool $checkColumns;
-
     private bool $debug;
 
     /**
-     * @param string[] $onlyTables     Exact table names to include (empty = all).
-     * @param string[] $onlyTableLike  SQL LIKE patterns to include.
-     * @param string[] $skipTables     Exact table names to exclude.
-     * @param string[] $skipTableLike  SQL LIKE patterns to exclude.
+     * @param string[] $onlyTables
+     * @param string[] $onlyTableLike
+     * @param string[] $skipTables
+     * @param string[] $skipTableLike
      */
     public function __construct(
         array $onlyTables = [],
@@ -49,17 +45,11 @@ final class EnsureCharsetCollationRuleConstraints implements RuleConstraintInter
         array $skipTables = [],
         array $skipTableLike = ['%tmp%', '%temp%', '%cache%'],
         string $targetCharset = 'utf8mb4',
-        string $targetCollation = 'utf8mb4_unicode_ci',
-        bool $checkColumns = true,
         bool $debug = false
     ) {
         if ($targetCharset === '') {
             throw new InvalidArgumentException('targetCharset must be a non-empty string.');
         }
-        if ($targetCollation === '') {
-            throw new InvalidArgumentException('targetCollation must be a non-empty string.');
-        }
-
         foreach ([$onlyTables, $onlyTableLike, $skipTables, $skipTableLike] as $arr) {
             foreach ($arr as $v) {
                 if (! is_string($v) || $v === '') {
@@ -67,14 +57,11 @@ final class EnsureCharsetCollationRuleConstraints implements RuleConstraintInter
                 }
             }
         }
-
         $this->onlyTables = array_values($onlyTables);
         $this->onlyTableLike = array_values($onlyTableLike);
         $this->skipTables = array_values($skipTables);
         $this->skipTableLike = array_values($skipTableLike);
         $this->targetCharset = $targetCharset;
-        $this->targetCollation = $targetCollation;
-        $this->checkColumns = $checkColumns;
         $this->debug = $debug;
     }
 
@@ -84,14 +71,12 @@ final class EnsureCharsetCollationRuleConstraints implements RuleConstraintInter
     public function toContext(): array
     {
         return [
-            'only_tables' => $this->onlyTables,
-            'only_table_like' => $this->onlyTableLike,
-            'skip_tables' => $this->skipTables,
-            'skip_table_like' => $this->skipTableLike,
-            'target_charset' => $this->targetCharset,
-            'target_collation' => $this->targetCollation,
-            'check_columns' => $this->checkColumns,
-            'debug' => $this->debug,
+            'only_tables'      => $this->onlyTables,
+            'only_table_like'  => $this->onlyTableLike,
+            'skip_tables'      => $this->skipTables,
+            'skip_table_like'  => $this->skipTableLike,
+            'target_charset'   => $this->targetCharset,
+            'debug'            => $this->debug,
         ];
     }
 }

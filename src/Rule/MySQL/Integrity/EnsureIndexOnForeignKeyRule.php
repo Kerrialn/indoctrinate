@@ -44,7 +44,9 @@ final class EnsureIndexOnForeignKeyRule implements RuleInterface
         return EnsureIndexOnForeignKeyRuleConstraints::class;
     }
 
-    /** @param array<string, mixed> $context */
+    /**
+     * @param array<string, mixed> $context
+     */
     public function apply(PDO $pdo, OutputInterface $output, array $context = []): array
     {
         $skipTables = array_map('strtolower', (array) ($context['skip_tables'] ?? []));
@@ -121,7 +123,9 @@ final class EnsureIndexOnForeignKeyRule implements RuleInterface
         return $results;
     }
 
-    /** @return array<int, array<string, string>> */
+    /**
+     * @return array<int, array<string, string>>
+     */
     private function findUnindexedForeignKeys(PDO $pdo): array
     {
         // A FK column is "covered" if it is the leading column (SEQ_IN_INDEX = 1)

@@ -36,7 +36,7 @@ class GenerateDocsCommand extends Command
         }
 
         $rules = $this->discoverClasses($srcDir . '/Rule', 'Indoctrinate\\Rule', RuleInterface::class);
-        $sets  = $this->discoverClasses($srcDir . '/Set',  'Indoctrinate\\Set',  SetInterface::class);
+        $sets = $this->discoverClasses($srcDir . '/Set', 'Indoctrinate\\Set', SetInterface::class);
 
         usort($rules, fn ($a, $b) => [$a::getDriver(), $a::getCategory(), $a::getName()] <=> [$b::getDriver(), $b::getCategory(), $b::getName()]);
         usort($sets, fn ($a, $b) => $a->getName() <=> $b->getName());
@@ -71,7 +71,7 @@ class GenerateDocsCommand extends Command
      */
     private function discoverClasses(string $dir, string $baseNamespace, string $interface): array
     {
-        if (!is_dir($dir)) {
+        if (! is_dir($dir)) {
             return [];
         }
 
@@ -88,12 +88,12 @@ class GenerateDocsCommand extends Command
             $relative = str_replace(['/', '.php'], ['\\', ''], $file->getRelativePathname());
             $fqcn = $baseNamespace . '\\' . $relative;
 
-            if (!class_exists($fqcn)) {
+            if (! class_exists($fqcn)) {
                 continue;
             }
 
             $ref = new \ReflectionClass($fqcn);
-            if ($ref->isAbstract() || $ref->isInterface() || !$ref->implementsInterface($interface)) {
+            if ($ref->isAbstract() || $ref->isInterface() || ! $ref->implementsInterface($interface)) {
                 continue;
             }
 

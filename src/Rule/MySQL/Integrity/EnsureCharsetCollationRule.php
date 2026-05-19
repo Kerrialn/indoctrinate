@@ -43,7 +43,9 @@ final class EnsureCharsetCollationRule implements RuleInterface
         return EnsureCharsetCollationRuleConstraints::class;
     }
 
-    /** @param array<string, mixed> $context */
+    /**
+     * @param array<string, mixed> $context
+     */
     public function apply(PDO $pdo, OutputInterface $output, array $context = []): array
     {
         $targetCharset = (string) ($context['target_charset'] ?? 'utf8mb4');
@@ -160,7 +162,9 @@ final class EnsureCharsetCollationRule implements RuleInterface
         return $results;
     }
 
-    /** @return array<int, array<string, string>> */
+    /**
+     * @return array<int, array<string, string>>
+     */
     private function getTables(PDO $pdo): array
     {
         $stmt = $pdo->query("
@@ -178,7 +182,9 @@ final class EnsureCharsetCollationRule implements RuleInterface
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    /** @return array<int, array<string, string>> */
+    /**
+     * @return array<int, array<string, string>>
+     */
     private function getMismatchedTextColumns(PDO $pdo, string $targetCharset, string $targetCollation): array
     {
         $stmt = $pdo->prepare("

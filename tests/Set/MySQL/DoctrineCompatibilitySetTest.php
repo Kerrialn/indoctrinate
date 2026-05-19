@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace IndoctrinateTest\Set\MySQL;
 
 use Indoctrinate\Rule\MySQL\Integrity\ConvertTemporalColumnsToDatetimeRule;
+use Indoctrinate\Rule\MySQL\Integrity\DetectVarcharIndexPrefixRule;
 use Indoctrinate\Rule\MySQL\Integrity\EnsureAutoIncrementPrimaryKeyRule;
 use Indoctrinate\Rule\MySQL\Integrity\EnsureCharsetCollationRule;
 use Indoctrinate\Rule\MySQL\Integrity\EnsureIndexOnForeignKeyRule;
@@ -36,6 +37,7 @@ final class DoctrineCompatibilitySetTest extends TestCase
 
         $this->assertContains(EnsureTransactionalEnginesRule::class, $rules);
         $this->assertContains(EnsureCharsetCollationRule::class, $rules);
+        $this->assertContains(DetectVarcharIndexPrefixRule::class, $rules);
         $this->assertContains(EnsureIndexOnForeignKeyRule::class, $rules);
         $this->assertContains(EnsureAutoIncrementPrimaryKeyRule::class, $rules);
         $this->assertContains(EnsureUnifiedPrimaryKeyNameRule::class, $rules);

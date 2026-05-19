@@ -19,6 +19,12 @@ interface SetInterface
     public function getRules(): array;
 
     /**
+     * Return true if this set always forces dry mode regardless of context.
+     * Pre-flight destructive-action checks skip sets that return true here.
+     */
+    public function isAlwaysDry(): bool;
+
+    /**
      * Run the set (usually: run each rule in order).
      * @param array<string,mixed> $context
      * @return list<Log>

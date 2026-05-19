@@ -39,6 +39,11 @@ final class EnsureDateTimeSet implements SetInterface
         ];
     }
 
+    public function isAlwaysDry(): bool
+    {
+        return false;
+    }
+
     /**
      * @param array<class-string<RuleInterface>, RuleConstraintInterface> $map
      */

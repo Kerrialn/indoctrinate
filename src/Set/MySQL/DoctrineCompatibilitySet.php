@@ -8,6 +8,7 @@ use Indoctrinate\Rule\Contract\RuleConstraintInterface;
 use Indoctrinate\Rule\Contract\RuleInterface;
 use Indoctrinate\Rule\MySQL\Integrity\ConvertTemporalColumnsToDatetimeRule;
 use Indoctrinate\Rule\MySQL\Integrity\EnsureAutoIncrementPrimaryKeyRule;
+use Indoctrinate\Rule\MySQL\Integrity\DetectVarcharIndexPrefixRule;
 use Indoctrinate\Rule\MySQL\Integrity\EnsureCharsetCollationRule;
 use Indoctrinate\Rule\MySQL\Integrity\EnsureIndexOnForeignKeyRule;
 use Indoctrinate\Rule\MySQL\Integrity\EnsureTransactionalEnginesRule;
@@ -43,6 +44,7 @@ final class DoctrineCompatibilitySet implements SetInterface
         return [
             EnsureTransactionalEnginesRule::class,
             EnsureCharsetCollationRule::class,
+            DetectVarcharIndexPrefixRule::class,
             EnsureIndexOnForeignKeyRule::class,
             EnsureAutoIncrementPrimaryKeyRule::class,
             EnsureUnifiedPrimaryKeyNameRule::class,
@@ -50,6 +52,11 @@ final class DoctrineCompatibilitySet implements SetInterface
             ConvertTemporalColumnsToDatetimeRule::class,
             MissingForeignKeyRowsRule::class,
         ];
+    }
+
+    public function isAlwaysDry(): bool
+    {
+        return true;
     }
 
     /**
@@ -60,7 +67,9 @@ final class DoctrineCompatibilitySet implements SetInterface
         $this->constraints = $map;
     }
 
-    /** @param array<string, mixed> $context */
+    /**
+     * @param array<string, mixed> $context
+     */
     public function execute(PDO $pdo, OutputInterface $io, array $context = []): array
     {
         // Always dry — this set is a read-only compatibility audit

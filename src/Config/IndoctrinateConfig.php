@@ -16,6 +16,8 @@ final class IndoctrinateConfig
 
     private ?ConnectionCredentials $credentials = null;
 
+    private int $destructiveThreshold = 10;
+
     /**
      * [ SetFQCN => [ RuleFQCN => RuleConstraintInterface|null, ... ], ... ]
      * @var array<class-string<SetInterface>, array<class-string<RuleInterface>, RuleConstraintInterface|null>>
@@ -177,5 +179,16 @@ final class IndoctrinateConfig
     public function getContext(): ?Context
     {
         return $this->context;
+    }
+
+    public function destructiveThreshold(int $n): self
+    {
+        $this->destructiveThreshold = max(1, $n);
+        return $this;
+    }
+
+    public function getDestructiveThreshold(): int
+    {
+        return $this->destructiveThreshold;
     }
 }
