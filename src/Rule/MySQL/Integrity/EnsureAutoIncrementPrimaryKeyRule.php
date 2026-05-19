@@ -35,6 +35,10 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
         return true;
     }
 
+    /**
+     * @param array<string, mixed> $context
+     * @return array<int, Log>
+     */
     public function apply(PDO $pdo, OutputInterface $output, array $context = []): array
     {
         $results = [];
@@ -121,6 +125,9 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
         return $results;
     }
 
+    /**
+     * @return array{0: list<string>, 1: list<string>, 2: string}
+     */
     private function planForNoPrimaryKey(PDO $pdo, string $table): array
     {
         $idInfo = $this->getColumnInfo($pdo, $table, 'id');
@@ -152,6 +159,10 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
         return [$steps, $notes, 'no primary key → add `id` auto-increment primary key'];
     }
 
+    /**
+     * @param list<string> $pkCols
+     * @return array{0: list<string>, 1: list<string>, 2: string}
+     */
     private function planForCompositePrimaryKey(string $table, array $pkCols): array
     {
         $pkColsSql = implode(', ', array_map(fn($c) => '`' . $this->qt($c) . '`', $pkCols));
@@ -173,6 +184,9 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
         return [$steps, $notes, 'composite primary key → add `id`, keep old key UNIQUE, make `id` primary'];
     }
 
+    /**
+     * @return array{0: list<string>, 1: list<string>, 2: string}
+     */
     private function planForSingleNonIntegerPrimary(string $table, string $pkCol): array
     {
         $pkColsSql = '`' . $this->qt($pkCol) . '`';
@@ -194,6 +208,10 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
         return [$steps, $notes, 'single non-integer primary key → add `id`, keep old key UNIQUE, make `id` primary'];
     }
 
+    /**
+     * @param array<int, Log> $results
+     * @param array{0: list<string>, 1: list<string>, 2: string} $plan
+     */
     private function emitOrApply(PDO $pdo, array &$results, string $table, array $plan, bool $isDry): void
     {
         [$steps, $notes, $headline] = $plan;
@@ -239,6 +257,9 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
 
     // ---------- Helpers ----------
 
+    /**
+     * @return list<string>
+     */
     private function getPrimaryKeyColumns(PDO $pdo, string $table): array
     {
         $stmt = $pdo->prepare("
@@ -259,6 +280,9 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
         return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'COLUMN_NAME');
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
     private function getColumnInfo(PDO $pdo, string $table, string $column): ?array
     {
         $stmt = $pdo->prepare("
@@ -283,6 +307,9 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
         return in_array($d, ['tinyint', 'smallint', 'mediumint', 'int', 'bigint'], true);
     }
 
+    /**
+     * @return list<string>
+     */
     private function getForeignKeyColumns(PDO $pdo, string $table): array
     {
         $stmt = $pdo->prepare("
@@ -298,6 +325,9 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
         return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'COLUMN_NAME');
     }
 
+    /**
+     * @return list<string>
+     */
     private function getAllColumns(PDO $pdo, string $table): array
     {
         $stmt = $pdo->prepare("
@@ -327,6 +357,9 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
         return \count($nonKeyCols) === 0;
     }
 
+    /**
+     * @return list<string>
+     */
     private function guessStableOrdering(PDO $pdo, string $table): array
     {
         $pk = $this->getPrimaryKeyColumns($pdo, $table);
@@ -361,6 +394,9 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
         return $cols;
     }
 
+    /**
+     * @param list<string> $cols
+     */
     private function orderBySql(array $cols): string
     {
         if ($cols === []) {
@@ -381,7 +417,7 @@ final class EnsureAutoIncrementPrimaryKeyRule implements RuleInterface
         return str_replace('`', '``', $ident);
     }
 
-    public static function getConstraintClass(): ?string
+    public static function getConstraintClass(): string
     {
         return EnsureAutoIncrementPrimaryKeyRuleConstraints::class;
     }

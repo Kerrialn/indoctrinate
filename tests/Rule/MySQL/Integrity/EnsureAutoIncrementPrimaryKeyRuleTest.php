@@ -72,10 +72,9 @@ final class EnsureAutoIncrementPrimaryKeyRuleTest extends TestCase
         // isPureJoinTable check: getPrimaryKeyColumns returns composite, then getForeignKeys returns only 1 → NOT a join table
         $fkStmt = $this->stmtReturningRows([['COLUMN_NAME' => 'user_id']]); // only 1 FK col → not pure join
 
-        $callCount = 0;
         $pdo = $this->buildPdo(
             tables: ['user_roles'],
-            prepareCallback: function (string $sql) use ($compositePkStmt, $fkStmt, &$callCount) {
+            prepareCallback: function (string $sql) use ($compositePkStmt, $fkStmt) {
                 if (strpos($sql, 'CONSTRAINT_TYPE') !== false) {
                     return $compositePkStmt; // always 2 PK cols
                 }
@@ -122,7 +121,10 @@ final class EnsureAutoIncrementPrimaryKeyRuleTest extends TestCase
         $this->assertStringContainsString('composite primary key', $logs[0]->getTo());
     }
 
-    /** @param array<int,array<string,string>> $tables @param callable $prepareCallback */
+    /**
+     * @param list<string> $tables
+     * @param callable(string): PDOStatement $prepareCallback
+     */
     private function buildPdo(array $tables, callable $prepareCallback): PDO
     {
         $tableStmt = $this->createMock(PDOStatement::class);
@@ -135,7 +137,7 @@ final class EnsureAutoIncrementPrimaryKeyRuleTest extends TestCase
         return $pdo;
     }
 
-    /** @param array<int,array<string,string>> $rows */
+    /** @param list<array<string,string>> $rows */
     private function stmtReturningRows(array $rows): PDOStatement
     {
         $stmt = $this->createMock(PDOStatement::class);

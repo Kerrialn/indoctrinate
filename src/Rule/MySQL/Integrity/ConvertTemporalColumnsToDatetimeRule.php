@@ -32,7 +32,7 @@ final class ConvertTemporalColumnsToDatetimeRule implements RuleInterface
         return 'Integrity';
     }
 
-    public static function getConstraintClass(): ?string
+    public static function getConstraintClass(): string
     {
         return ConvertTemporalColumnsToDatetimeRuleConstraints::class;
     }
@@ -187,6 +187,9 @@ final class ConvertTemporalColumnsToDatetimeRule implements RuleInterface
         return $nullable ? 'DEFAULT NULL' : '';
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
     private function temporalColumns(PDO $pdo): array
     {
         $st = $pdo->query("
@@ -199,6 +202,9 @@ final class ConvertTemporalColumnsToDatetimeRule implements RuleInterface
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    /**
+     * @param array<int, Log> $results
+     */
     private function maybeExec(PDO $pdo, OutputInterface $out, bool $dry, string $sql, array &$results, string $table, string $col, string $what): void
     {
         if ($dry) {

@@ -89,6 +89,9 @@ final class MissingForeignKeyRowsRuleTest extends TestCase
         $this->assertCount(3, $logs);
     }
 
+    /**
+     * @param list<array<string, mixed>> $rows
+     */
     private function stmt(array $rows): PDOStatement
     {
         $stmt = $this->createMock(PDOStatement::class);
@@ -96,6 +99,9 @@ final class MissingForeignKeyRowsRuleTest extends TestCase
         return $stmt;
     }
 
+    /**
+     * @param list<mixed> $values
+     */
     private function colStmt(array $values): PDOStatement
     {
         $stmt = $this->createMock(PDOStatement::class);

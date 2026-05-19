@@ -7,28 +7,28 @@ final class Context
     /**
      * @readonly
      */
-    private bool $isDry = false;
+    private bool $isDry;
 
     /**
      * @readonly
      */
-    private bool $isProd = false;
+    private bool $isProd;
 
     /**
      * @readonly
      */
-    private ?string $logDir = null;
+    private ?string $logDir;
 
     /**
      * @readonly
      */
-    private string $configFilePath = '';
+    private string $configFilePath;
 
     /**
      * @readonly
      * @var string|null
      */
-    private $dsn = null;
+    private $dsn;
 
     public function __construct(bool $isDry = false, bool $isProd = false, ?string $logDir = null, string $configFilePath = '', ?string $dsn = null)
     {

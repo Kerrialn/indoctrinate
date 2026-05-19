@@ -40,10 +40,13 @@ final class NormalizeTemporalValuesRuleTest extends TestCase
 
     public function testDryModeDoesNotCallExec(): void
     {
-        $pdo = $this->pdoWithColumns([
+        $stmt = $this->createMock(\PDOStatement::class);
+        $stmt->method('fetchAll')->willReturn([
             ['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'created_at', 'DATA_TYPE' => 'datetime', 'COLUMN_TYPE' => 'datetime', 'IS_NULLABLE' => 'YES', 'COLUMN_DEFAULT' => null, 'EXTRA' => ''],
         ]);
 
+        $pdo = $this->createMock(\PDO::class);
+        $pdo->method('query')->willReturn($stmt);
         $pdo->expects($this->never())->method('exec');
 
         (new NormalizeTemporalValuesRule())->apply($pdo, new NullOutput(), ['dry' => true]);
@@ -89,6 +92,9 @@ final class NormalizeTemporalValuesRuleTest extends TestCase
         $this->assertCount(0, $hasMicroseconds);
     }
 
+    /**
+     * @param list<array<string, mixed>> $columns
+     */
     private function pdoWithColumns(array $columns): PDO
     {
         $stmt = $this->createMock(PDOStatement::class);

@@ -93,7 +93,10 @@ final class EnsureTransactionalEnginesRuleTest extends TestCase
         $this->assertCount(0, $logs);
     }
 
-    /** @param array<string,string> $version @param array<int,array<string,string>> $tables */
+    /**
+     * @param array<string,string> $version
+     * @param list<array<string,string>> $tables
+     */
     private function buildPdo(array $version, array $tables): PDO
     {
         $versionStmt = $this->createMock(PDOStatement::class);

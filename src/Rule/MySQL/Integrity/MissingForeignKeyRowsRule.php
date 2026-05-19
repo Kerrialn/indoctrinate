@@ -65,6 +65,9 @@ final class MissingForeignKeyRowsRule implements RuleInterface
         return $logs;
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
     private function getForeignKeyConstraints(PDO $pdo): array
     {
         $sql = <<<SQL
@@ -87,6 +90,10 @@ SQL;
         );
     }
 
+    /**
+     * @param array<string, mixed> $fk
+     * @return list<mixed>
+     */
     private function findMissingParentRows(PDO $pdo, array $fk): array
     {
         $sql = <<<SQL
@@ -103,6 +110,9 @@ SQL;
         return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'missing_id');
     }
 
+    /**
+     * @param mixed $id
+     */
     private function insertStubRow(PDO $pdo, string $table, string $pkColumn, $id): void
     {
         $sql = "INSERT IGNORE INTO {$table} (`{$pkColumn}`) VALUES (:id)";

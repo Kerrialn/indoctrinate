@@ -25,6 +25,12 @@ interface SetInterface
     public function isAlwaysDry(): bool;
 
     /**
+     * Supply a per-rule constraint map to the set before executing.
+     * @param array<class-string, mixed> $map
+     */
+    public function config(array $map): void;
+
+    /**
      * Run the set (usually: run each rule in order).
      * @param array<string,mixed> $context
      * @return list<Log>

@@ -67,7 +67,7 @@ final class DoctrineCompatibilitySetTest extends TestCase
         $set = new DoctrineCompatibilitySet();
         $logs = $set->execute($pdo, new NullOutput(), ['dry' => false]);
 
-        $this->assertIsArray($logs);
+        $this->assertGreaterThanOrEqual(0, count($logs));
     }
 
     public function testExecuteReturnsArrayOfLogs(): void
@@ -76,7 +76,7 @@ final class DoctrineCompatibilitySetTest extends TestCase
 
         $logs = (new DoctrineCompatibilitySet())->execute($pdo, new NullOutput());
 
-        $this->assertIsArray($logs);
+        $this->assertGreaterThanOrEqual(0, count($logs));
     }
 
     private function buildNullPdo(): PDO

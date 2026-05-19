@@ -71,12 +71,12 @@ final class DetectVarcharIndexPrefixRuleConstraints implements RuleConstraintInt
     public function toContext(): array
     {
         return [
-            'only_tables'      => $this->onlyTables,
-            'only_table_like'  => $this->onlyTableLike,
-            'skip_tables'      => $this->skipTables,
-            'skip_table_like'  => $this->skipTableLike,
-            'target_charset'   => $this->targetCharset,
-            'debug'            => $this->debug,
+            'only_tables' => $this->onlyTables,
+            'only_table_like' => $this->onlyTableLike,
+            'skip_tables' => $this->skipTables,
+            'skip_table_like' => $this->skipTableLike,
+            'target_charset' => $this->targetCharset,
+            'debug' => $this->debug,
         ];
     }
 }

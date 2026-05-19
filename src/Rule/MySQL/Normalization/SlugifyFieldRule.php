@@ -194,6 +194,10 @@ final class SlugifyFieldRule implements RuleInterface
 
     /* ---------------- helpers ---------------- */
 
+    /**
+     * @param array<string, mixed> $ctx
+     * @return array<string, mixed>
+     */
     private function normalizeContext(array $ctx): array
     {
         // map incoming keys to our internal names
@@ -276,6 +280,9 @@ final class SlugifyFieldRule implements RuleInterface
         return mb_strimwidth($slug, 0, $len, '');
     }
 
+    /**
+     * @param array<string, bool> $existing
+     */
     private function ensureUniqueSlug(PDO $pdo, string $table, string $col, string $slug, int $len, array &$existing): string
     {
         if (! isset($existing[$slug]) && ! $this->slugExists($pdo, $table, $col, $slug)) {
@@ -306,6 +313,9 @@ final class SlugifyFieldRule implements RuleInterface
         return (bool) $st->fetchColumn();
     }
 
+    /**
+     * @return array<string, bool>
+     */
     private function loadExistingSlugSet(PDO $pdo, string $table, string $col): array
     {
         $rows = $pdo->query(sprintf(
@@ -357,6 +367,9 @@ final class SlugifyFieldRule implements RuleInterface
         return false;
     }
 
+    /**
+     * @param array<int, Log> $results
+     */
     private function ensureIndex(PDO $pdo, string $table, string $col, bool $unique, array &$results, OutputInterface $out): void
     {
         $idxName = sprintf('%s_%s_%s_idx', $unique ? 'uniq' : 'idx', $table, $col);
@@ -411,7 +424,7 @@ final class SlugifyFieldRule implements RuleInterface
         return str_replace('`', '``', $ident);
     }
 
-    public static function getConstraintClass(): ?string
+    public static function getConstraintClass(): string
     {
         return SlugifyFieldRuleConstraints::class;
     }

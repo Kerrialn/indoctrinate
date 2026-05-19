@@ -27,37 +27,37 @@ final class SlugifyFieldRuleConstraints implements RuleConstraintInterface
     /**
      * @readonly
      */
-    public int $targetLength = 191;
+    public int $targetLength;
 
     /**
      * @readonly
      */
-    public bool $lowercase = true;
+    public bool $lowercase;
 
     /**
      * @readonly
      */
-    public string $separator = '-';
+    public string $separator;
 
     /**
      * @readonly
      */
-    public bool $overwriteExisting = false;
+    public bool $overwriteExisting;
 
     /**
      * @readonly
      */
-    public bool $createIndex = true;
+    public bool $createIndex;
 
     /**
      * @readonly
      */
-    public bool $unique = true;
+    public bool $unique;
 
     /**
      * @readonly
      */
-    public int $batchSize = 1000;
+    public int $batchSize;
 
     public function __construct(
         string $table,

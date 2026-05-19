@@ -48,11 +48,11 @@ final class DetectVarcharIndexPrefixRule implements RuleInterface
     public function apply(PDO $pdo, OutputInterface $output, array $context = []): array
     {
         $targetCharset = (string) ($context['target_charset'] ?? 'utf8mb4');
-        $skipTables    = array_map('strtolower', (array) ($context['skip_tables'] ?? []));
+        $skipTables = array_map('strtolower', (array) ($context['skip_tables'] ?? []));
         $skipTableLike = (array) ($context['skip_table_like'] ?? ['%tmp%', '%temp%', '%cache%']);
-        $onlyTables    = array_map('strtolower', (array) ($context['only_tables'] ?? []));
+        $onlyTables = array_map('strtolower', (array) ($context['only_tables'] ?? []));
         $onlyTableLike = (array) ($context['only_table_like'] ?? []);
-        $debug         = (bool) ($context['debug'] ?? false);
+        $debug = (bool) ($context['debug'] ?? false);
 
         $allow = function (string $table) use ($onlyTables, $onlyTableLike, $skipTables, $skipTableLike): bool {
             $t = strtolower($table);
@@ -86,22 +86,22 @@ final class DetectVarcharIndexPrefixRule implements RuleInterface
         $output->writeln(sprintf('[%s] scanned %d indexed %s column(s)', self::getName(), count($candidates), $targetCharset));
 
         $results = [];
-        $seen    = [];
+        $seen = [];
 
         foreach ($candidates as $row) {
-            $table  = (string) $row['TABLE_NAME'];
+            $table = (string) $row['TABLE_NAME'];
             $column = (string) $row['COLUMN_NAME'];
-            $key    = $table . "\0" . $column;
+            $key = $table . "\0" . $column;
 
             if (isset($seen[$key]) || ! $allow($table)) {
                 continue;
             }
 
-            $maxChars      = (int) $row['CHARACTER_MAXIMUM_LENGTH'];
-            $rowFormat     = strtoupper((string) ($row['ROW_FORMAT'] ?? 'COMPACT'));
+            $maxChars = (int) $row['CHARACTER_MAXIMUM_LENGTH'];
+            $rowFormat = strtoupper((string) ($row['ROW_FORMAT'] ?? 'COMPACT'));
             $isLargeFormat = \in_array($rowFormat, ['DYNAMIC', 'COMPRESSED'], true);
-            $limit         = ($largePrefixEnabled && $isLargeFormat) ? 3072 : 767;
-            $byteLength    = $maxChars * $bytesPerChar;
+            $limit = ($largePrefixEnabled && $isLargeFormat) ? 3072 : 767;
+            $byteLength = $maxChars * $bytesPerChar;
 
             if ($byteLength <= $limit) {
                 continue;
@@ -110,15 +110,15 @@ final class DetectVarcharIndexPrefixRule implements RuleInterface
             $seen[$key] = true;
 
             $safeMaxChars = (int) floor($limit / $bytesPerChar);
-            $dataType     = strtoupper((string) $row['DATA_TYPE']);
-            $nullable     = strtoupper((string) ($row['IS_NULLABLE'] ?? 'YES')) === 'YES';
-            $default      = $row['COLUMN_DEFAULT'];
-            $collation    = (string) ($row['COLLATION_NAME'] ?? '');
-            $indexName    = (string) ($row['INDEX_NAME'] ?? '');
-            $isUnique     = ((string) ($row['NON_UNIQUE'] ?? '1')) === '0';
+            $dataType = strtoupper((string) $row['DATA_TYPE']);
+            $nullable = strtoupper((string) ($row['IS_NULLABLE'] ?? 'YES')) === 'YES';
+            $default = $row['COLUMN_DEFAULT'];
+            $collation = (string) ($row['COLLATION_NAME'] ?? '');
+            $indexName = (string) ($row['INDEX_NAME'] ?? '');
+            $isUnique = ((string) ($row['NON_UNIQUE'] ?? '1')) === '0';
 
-            $nullSql      = $nullable ? 'NULL' : 'NOT NULL';
-            $defaultSql   = $default !== null ? " DEFAULT '" . addslashes((string) $default) . "'" : '';
+            $nullSql = $nullable ? 'NULL' : 'NOT NULL';
+            $defaultSql = $default !== null ? " DEFAULT '" . addslashes((string) $default) . "'" : '';
             $collationSql = $collation !== '' ? " COLLATE {$collation}" : '';
 
             $from = sprintf(
@@ -164,7 +164,7 @@ final class DetectVarcharIndexPrefixRule implements RuleInterface
     private function detectPrefixCapabilities(PDO $pdo): array
     {
         $version = (string) $pdo->query('SELECT VERSION()')->fetchColumn();
-        $major   = (int) explode('.', $version)[0];
+        $major = (int) explode('.', $version)[0];
 
         // MySQL 8.0+ always has large prefix enabled for DYNAMIC tables.
         if ($major >= 8) {
@@ -173,7 +173,7 @@ final class DetectVarcharIndexPrefixRule implements RuleInterface
 
         // MySQL 5.x: check innodb_large_prefix variable.
         try {
-            $row     = $pdo->query("SHOW VARIABLES LIKE 'innodb_large_prefix'")->fetch(PDO::FETCH_ASSOC);
+            $row = $pdo->query("SHOW VARIABLES LIKE 'innodb_large_prefix'")->fetch(PDO::FETCH_ASSOC);
             $enabled = $row && strtoupper((string) ($row['Value'] ?? '')) === 'ON';
         } catch (\Throwable $e) {
             $enabled = false;
@@ -216,20 +216,26 @@ final class DetectVarcharIndexPrefixRule implements RuleInterface
               AND t.TABLE_TYPE              = \'BASE TABLE\'
             ORDER BY s.TABLE_NAME, s.INDEX_NAME, s.COLUMN_NAME
         ');
-        $stmt->execute([':charset' => $targetCharset]);
+        $stmt->execute([
+            ':charset' => $targetCharset,
+        ]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     private function bytesPerChar(string $charset): int
     {
-        return match (true) {
-            str_starts_with($charset, 'utf8mb4') => 4,
-            str_starts_with($charset, 'utf8')    => 3,
-            str_starts_with($charset, 'ucs2'),
-            str_starts_with($charset, 'utf16'),
-            str_starts_with($charset, 'utf32')   => 4,
-            default                               => 1,
-        };
+        switch (true) {
+            case strncmp($charset, 'utf8mb4', strlen('utf8mb4')) === 0:
+                return 4;
+            case strncmp($charset, 'utf8', strlen('utf8')) === 0:
+                return 3;
+            case strncmp($charset, 'ucs2', strlen('ucs2')) === 0:
+            case strncmp($charset, 'utf16', strlen('utf16')) === 0:
+            case strncmp($charset, 'utf32', strlen('utf32')) === 0:
+                return 4;
+            default:
+                return 1;
+        }
     }
 
     private function likeMatch(string $table, string $pattern): bool

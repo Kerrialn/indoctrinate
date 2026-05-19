@@ -172,8 +172,8 @@ final class NormalizeIntColumnsRule implements RuleInterface
                     '  • %s.%s (%s) -> %s',
                     $log->getTable(),
                     $log->getColumn(),
-                    $log->getCurrent(),
-                    $log->getTarget()
+                    $log->getFrom(),
+                    $log->getTo()
                 ));
             }
         }

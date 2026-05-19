@@ -107,7 +107,7 @@ final class EnsureTransactionalEnginesRule implements RuleInterface
             $notes[] = "estimated rows: {$rows}";
             $notes[] = "approx size: {$mb} MB";
 
-            $noteString = $notes !== [] ? ' (' . implode('; ', $notes) . ')' : '';
+            $noteString = ' (' . implode('; ', $notes) . ')';
 
             // Special engines often used intentionally
             if ($engine === 'MEMORY' && ! $forceMemory) {
@@ -176,6 +176,7 @@ final class EnsureTransactionalEnginesRule implements RuleInterface
 
     /**
      * Return a map table_name => bool indicating presence of a given index type.
+     * @return array<string, bool>
      */
     private function indexPresence(PDO $pdo, string $indexType): array
     {

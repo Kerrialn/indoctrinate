@@ -117,7 +117,10 @@ final class NormalizeIntColumnsRuleTest extends TestCase
         $this->assertCount(0, $logs);
     }
 
-    /** @param array<int,array<string,string|null>> $columns @param array<int,array<string,string>> $fkRows */
+    /**
+     * @param array<int,array<string,string|null>> $columns
+     * @param list<array<string,string>> $fkRows
+     */
     private function buildPdo(array $columns, array $fkRows): PDO
     {
         $colStmt = $this->createMock(PDOStatement::class);

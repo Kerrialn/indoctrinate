@@ -21,6 +21,7 @@ interface RuleInterface
     public static function getConstraintClass(): ?string;
 
     /**
+     * @param array<string, mixed> $context
      * @return array<int, Log>
      */
     public function apply(PDO $pdo, OutputInterface $output, array $context = []): array;

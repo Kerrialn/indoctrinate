@@ -28,7 +28,7 @@ final class DetectVarcharIndexPrefixRuleTest extends TestCase
 
     public function testConstraintClassIsSet(): void
     {
-        $this->assertNotNull(DetectVarcharIndexPrefixRule::getConstraintClass());
+        $this->assertNotEmpty(DetectVarcharIndexPrefixRule::getConstraintClass());
     }
 
     // -------------------------------------------------------------------------

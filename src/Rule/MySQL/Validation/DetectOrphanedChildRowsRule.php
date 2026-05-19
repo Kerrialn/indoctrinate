@@ -73,6 +73,9 @@ SQL;
         return $logs;
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
     private function getForeignKeyConstraints(PDO $pdo): array
     {
         $sql = <<<SQL

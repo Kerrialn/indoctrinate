@@ -12,40 +12,40 @@ final class EnsureUnifiedPrimaryKeyNameRuleConstraints implements RuleConstraint
      * @var string[]
      * @readonly
      */
-    public array $onlyTables = [];
+    public array $onlyTables;
 
     /**
      * @var string[]
      * @readonly
      */
-    public array $onlyTableLike = [];
+    public array $onlyTableLike;
 
     /**
      * @var string[]
      * @readonly
      */
-    public array $skipTables = [];
+    public array $skipTables;
 
     /**
      * @var string[]
      * @readonly
      */
-    public array $skipTableLike = ['%session%', '%sessions%', '%tmp%', '%temp%', '%cache%'];
+    public array $skipTableLike;
 
     /**
      * @readonly
      */
-    public string $targetName = 'id';
+    public string $targetName;
 
     /**
      * @readonly
      */
-    public bool $rebuildChildFks = false;
+    public bool $rebuildChildFks;
 
     /**
      * @readonly
      */
-    public bool $debug = false;
+    public bool $debug;
 
     /**
      * @param string[] $onlyTables

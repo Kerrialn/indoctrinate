@@ -15,7 +15,7 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
         return 'ensure_unified_primary_key_name';
     }
 
-    public static function getConstraintClass(): ?string
+    public static function getConstraintClass(): string
     {
         return EnsureUnifiedPrimaryKeyNameRuleConstraints::class;
     }
@@ -220,6 +220,9 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
         return (bool) $st->fetchColumn();
     }
 
+    /**
+     * @param list<string> $cols
+     */
     private function hasIndexOnColumns(PDO $pdo, string $table, array $cols, bool $requireUnique): bool
     {
         $rows = $pdo->query(sprintf("SHOW INDEX FROM `%s`", $this->qt($table)))->fetchAll(PDO::FETCH_ASSOC);
@@ -233,7 +236,7 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
         }
         $needle = array_map('strtolower', $cols);
         foreach ($byIdx as $info) {
-            $isUnique = (bool) ($info['_unique'] ?? false);
+            $isUnique = (bool) $info['_unique'];
             if ($requireUnique && ! $isUnique) continue;
             unset($info['_unique']);
             ksort($info);
@@ -242,6 +245,9 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
         return false;
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
     private function getChildFkMeta(PDO $pdo, string $parentTable, string $parentPkCol): array
     {
         $st = $pdo->prepare("
@@ -266,6 +272,9 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    /**
+     * @return list<string>
+     */
     private function getPrimaryKeyColumns(PDO $pdo, string $table): array
     {
         $stmt = $pdo->prepare("
@@ -286,6 +295,9 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
         return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'COLUMN_NAME');
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
     private function getColumnInfo(PDO $pdo, string $table, string $col): ?array
     {
         $st = $pdo->prepare("

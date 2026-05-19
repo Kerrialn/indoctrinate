@@ -92,6 +92,9 @@ final class ConvertTemporalColumnsToDatetimeRuleTest extends TestCase
         $this->assertStringContainsString('zero', $logs[0]->getTo());
     }
 
+    /**
+     * @param list<array<string, mixed>> $columns
+     */
     private function pdoWithColumns(array $columns): PDO
     {
         $stmt = $this->createMock(PDOStatement::class);

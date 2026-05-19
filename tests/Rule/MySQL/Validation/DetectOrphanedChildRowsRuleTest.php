@@ -76,6 +76,9 @@ final class DetectOrphanedChildRowsRuleTest extends TestCase
         $this->assertSame('comments', $logs[2]->getTable());
     }
 
+    /**
+     * @param list<array<string, mixed>> $rows
+     */
     private function stmt(array $rows): PDOStatement
     {
         $stmt = $this->createMock(PDOStatement::class);
@@ -83,6 +86,9 @@ final class DetectOrphanedChildRowsRuleTest extends TestCase
         return $stmt;
     }
 
+    /**
+     * @param list<mixed> $values
+     */
     private function colStmt(array $values): PDOStatement
     {
         $stmt = $this->createMock(PDOStatement::class);

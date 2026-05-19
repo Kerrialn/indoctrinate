@@ -72,8 +72,31 @@ final class SlugifyFieldRuleTest extends TestCase
 
     public function testDryModeDoesNotCallExec(): void
     {
-        $pdo = $this->buildDryModePdo(sourceExists: true, targetExists: false, pkCols: ['id'], rowCount: 0);
+        $existsStmt = $this->createMock(PDOStatement::class);
+        $existsStmt->method('execute')->willReturn(true);
+        $existsStmt->method('fetchColumn')->willReturn('1');
 
+        $targetStmt = $this->createMock(PDOStatement::class);
+        $targetStmt->method('execute')->willReturn(true);
+        $targetStmt->method('fetchColumn')->willReturn(false);
+
+        $pkStmt = $this->createMock(PDOStatement::class);
+        $pkStmt->method('execute')->willReturn(true);
+        $pkStmt->method('fetchAll')->willReturn(['id']);
+
+        $emptyIndexStmt = $this->createMock(PDOStatement::class);
+        $emptyIndexStmt->method('fetchAll')->willReturn([]);
+
+        $countStmt = $this->createMock(PDOStatement::class);
+        $countStmt->method('fetchColumn')->willReturn('0');
+
+        $pdo = $this->createMock(PDO::class);
+        $pdo->method('prepare')->willReturnOnConsecutiveCalls(
+            $existsStmt, $targetStmt, $pkStmt, $pkStmt
+        );
+        $pdo->method('query')->willReturnOnConsecutiveCalls(
+            $emptyIndexStmt, $emptyIndexStmt, $countStmt
+        );
         $pdo->expects($this->never())->method('exec');
 
         (new SlugifyFieldRule())->apply($pdo, new NullOutput(), [
@@ -103,6 +126,9 @@ final class SlugifyFieldRuleTest extends TestCase
      * Build a PDO mock wired for a dry-run invocation.
      * prepare() calls in order: assertColumnExists(src), columnExists(dst), detectSingleColumnPk x2
      * query() calls in order: SHOW INDEX (haveUnique), SHOW INDEX (haveAny if needed), SELECT COUNT
+     */
+    /**
+     * @param list<string> $pkCols
      */
     private function buildDryModePdo(bool $sourceExists, bool $targetExists, array $pkCols, int $rowCount): PDO
     {

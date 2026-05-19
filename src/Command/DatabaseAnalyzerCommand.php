@@ -94,7 +94,7 @@ class DatabaseAnalyzerCommand extends Command
             ? $this->resolveCredentials($input, $this->config)
             : ($this->config->getConnectionCredentials());
 
-        if ($isProd && $this->config->getConnectionCredentials() instanceof \Indoctrinate\Config\ConnectionCredentials) {
+        if ($isProd) {
             $io->note('Prod mode: ignoring credentials defined in indoctrinate.php.');
         }
 
@@ -270,7 +270,7 @@ class DatabaseAnalyzerCommand extends Command
 
                 try {
                     $logs = $set->execute($pdo, $io, $setContext);
-                    $issueCount = is_array($logs) ? count($logs) : 0;
+                    $issueCount = count($logs);
 
                     // Group logs by rule name for report mode
                     $countByRuleName = [];
@@ -436,7 +436,7 @@ class DatabaseAnalyzerCommand extends Command
                 }
 
                 $logs = $rule->apply($pdo, $io, $context);
-                $issueCount = is_array($logs) ? count($logs) : 0;
+                $issueCount = count($logs);
 
                 $reportRows[] = [
                     'name' => $ruleClass::getName(),
@@ -568,7 +568,9 @@ class DatabaseAnalyzerCommand extends Command
                 if ($ruleClass::getDriver() !== $activeDriver || ! $ruleClass::isDestructive()) {
                     continue;
                 }
-                $ruleCtx = ['dry' => true];
+                $ruleCtx = [
+                    'dry' => true,
+                ];
                 $constraint = $constraints[$ruleClass] ?? null;
                 if ($constraint instanceof RuleConstraintInterface) {
                     $ruleCtx = array_replace($ruleCtx, $constraint->toContext());
@@ -584,7 +586,9 @@ class DatabaseAnalyzerCommand extends Command
             if ($ruleClass::getDriver() !== $activeDriver || ! $ruleClass::isDestructive()) {
                 continue;
             }
-            $ruleCtx = ['dry' => true];
+            $ruleCtx = [
+                'dry' => true,
+            ];
             if ($constraint instanceof RuleConstraintInterface) {
                 $ruleCtx = array_replace($ruleCtx, $constraint->toContext());
             }
@@ -617,7 +621,10 @@ class DatabaseAnalyzerCommand extends Command
                     continue;
                 }
                 $seen[$ruleClass] = true;
-                $found[] = ['name' => $ruleClass::getName(), 'description' => $ruleClass::getDescription()];
+                $found[] = [
+                    'name' => $ruleClass::getName(),
+                    'description' => $ruleClass::getDescription(),
+                ];
             }
         }
 
@@ -630,13 +637,20 @@ class DatabaseAnalyzerCommand extends Command
                 continue;
             }
             $seen[$ruleClass] = true;
-            $found[] = ['name' => $ruleClass::getName(), 'description' => $ruleClass::getDescription()];
+            $found[] = [
+                'name' => $ruleClass::getName(),
+                'description' => $ruleClass::getDescription(),
+            ];
         }
 
         return $found;
     }
 
-    private function resolveRuleClass(mixed $key, mixed $def): ?string
+    /**
+     * @param mixed $key
+     * @param mixed $def
+     */
+    private function resolveRuleClass($key, $def): ?string
     {
         if (is_string($def) && class_exists($def)) {
             return $def;
@@ -751,7 +765,7 @@ class DatabaseAnalyzerCommand extends Command
             $pass = trim($contents);
         }
 
-        $port = (string) ($input->getOption('db-port') ?: '3306');
+        $port = (int) ($input->getOption('db-port') ?: '3306');
 
         return new ConnectionCredentials(
             'mysql',
@@ -772,7 +786,7 @@ class DatabaseAnalyzerCommand extends Command
 
         $driver = rtrim((string) ($parts['scheme'] ?? 'mysql'), ':/');
         $host = (string) ($parts['host'] ?? '127.0.0.1');
-        $port = (string) ($parts['port'] ?? '3306');
+        $port = (int) ($parts['port'] ?? '3306');
         $database = ltrim((string) ($parts['path'] ?? ''), '/');
         $user = isset($parts['user']) ? urldecode($parts['user']) : '';
         $pass = isset($parts['pass']) ? urldecode($parts['pass']) : '';
