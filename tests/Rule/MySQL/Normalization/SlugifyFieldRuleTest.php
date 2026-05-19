@@ -55,7 +55,7 @@ final class SlugifyFieldRuleTest extends TestCase
 
     public function testDryModeWithNewTargetColumnReturnsLogsWithoutExec(): void
     {
-        $pdo = $this->buildDryModePdo(sourceExists: true, targetExists: false, pkCols: ['id'], rowCount: 10);
+        $pdo = $this->buildDryModePdo(true, false, ['id'], 10);
 
         $logs = (new SlugifyFieldRule())->apply($pdo, new NullOutput(), [
             'table' => 'products',
@@ -109,7 +109,7 @@ final class SlugifyFieldRuleTest extends TestCase
 
     public function testDryModeWithExistingTargetSkipsAddColumnLog(): void
     {
-        $pdo = $this->buildDryModePdo(sourceExists: true, targetExists: true, pkCols: ['id'], rowCount: 5);
+        $pdo = $this->buildDryModePdo(true, true, ['id'], 5);
 
         $logs = (new SlugifyFieldRule())->apply($pdo, new NullOutput(), [
             'table' => 'products',

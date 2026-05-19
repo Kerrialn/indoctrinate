@@ -15,8 +15,8 @@ final class EnsureUnifiedPrimaryKeyNameRuleTest extends TestCase
     public function testSkipsTableWhosePkIsAlreadyNamedId(): void
     {
         $pdo = $this->buildPdo(
-            tables: ['users'],
-            pkCols: ['id'], // PK is 'id', not 'uuid' → skip
+            ['users'],
+            ['id'] // PK is 'id', not 'uuid' → skip
         );
 
         $logs = (new EnsureUnifiedPrimaryKeyNameRule())->apply($pdo, new NullOutput());
@@ -27,8 +27,8 @@ final class EnsureUnifiedPrimaryKeyNameRuleTest extends TestCase
     public function testSkipsTableWithNoPrimaryKey(): void
     {
         $pdo = $this->buildPdo(
-            tables: ['logs'],
-            pkCols: [],
+            ['logs'],
+            []
         );
 
         $logs = (new EnsureUnifiedPrimaryKeyNameRule())->apply($pdo, new NullOutput());
@@ -40,8 +40,8 @@ final class EnsureUnifiedPrimaryKeyNameRuleTest extends TestCase
     {
         // %session% is in default skip_table_like
         $pdo = $this->buildPdo(
-            tables: ['sessions'],
-            pkCols: ['uuid'],
+            ['sessions'],
+            ['uuid']
         );
 
         $logs = (new EnsureUnifiedPrimaryKeyNameRule())->apply($pdo, new NullOutput());
@@ -52,11 +52,11 @@ final class EnsureUnifiedPrimaryKeyNameRuleTest extends TestCase
     public function testRenamesUuidPkToIdInDryMode(): void
     {
         $pdo = $this->buildPdo(
-            tables: ['products'],
-            pkCols: ['uuid'],
-            uuidColInfo: ['COLUMN_NAME' => 'uuid', 'COLUMN_TYPE' => 'char(36)', 'IS_NULLABLE' => 'NO', 'EXTRA' => ''],
-            idColExists: false,
-            childFkMeta: [],
+            ['products'],
+            ['uuid'],
+            ['COLUMN_NAME' => 'uuid', 'COLUMN_TYPE' => 'char(36)', 'IS_NULLABLE' => 'NO', 'EXTRA' => ''],
+            false,
+            []
         );
 
         $logs = (new EnsureUnifiedPrimaryKeyNameRule())->apply($pdo, new NullOutput(), ['dry' => true]);
@@ -70,9 +70,9 @@ final class EnsureUnifiedPrimaryKeyNameRuleTest extends TestCase
     {
         // PK named 'uuid' but wrong type (e.g. varchar) → skip
         $pdo = $this->buildPdo(
-            tables: ['things'],
-            pkCols: ['uuid'],
-            uuidColInfo: ['COLUMN_NAME' => 'uuid', 'COLUMN_TYPE' => 'varchar(36)', 'IS_NULLABLE' => 'NO', 'EXTRA' => ''],
+            ['things'],
+            ['uuid'],
+            ['COLUMN_NAME' => 'uuid', 'COLUMN_TYPE' => 'varchar(36)', 'IS_NULLABLE' => 'NO', 'EXTRA' => '']
         );
 
         $logs = (new EnsureUnifiedPrimaryKeyNameRule())->apply($pdo, new NullOutput());

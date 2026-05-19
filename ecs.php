@@ -9,10 +9,4 @@ return ECSConfig::configure()
     ->withPaths([
         __DIR__ . '/src',
     ])
-    ->withPreparedSets(
-        arrays: true,
-        comments: true,
-        docblocks: true,
-        spaces: true,
-        namespaces: true,
-    );
+    ->withPreparedSets(false, false, false, false, true, true, true, true, true);

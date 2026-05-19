@@ -91,11 +91,7 @@ final class DetectVarcharIndexPrefixRuleTest extends TestCase
     public function testFlagsVarchar255OnMySQL57WithoutLargePrefix(): void
     {
         // 255 * 4 = 1020 bytes > 767
-        $pdo  = $this->buildPdo(
-            rows: [$this->row('products', 'name', 255, 'COMPACT')],
-            mysqlVersion: '5.7.42',
-            largePrefixValue: 'OFF'
-        );
+        $pdo  = $this->buildPdo([$this->row('products', 'name', 255, 'COMPACT')], '5.7.42', 'OFF');
         $logs = (new DetectVarcharIndexPrefixRule())->apply($pdo, new NullOutput());
 
         $this->assertCount(1, $logs);
@@ -109,11 +105,7 @@ final class DetectVarcharIndexPrefixRuleTest extends TestCase
     public function testDoesNotFlagVarchar255OnMySQL57WithLargePrefixDynamic(): void
     {
         // Large prefix enabled + DYNAMIC → limit 3072; 255 * 4 = 1020 < 3072
-        $pdo  = $this->buildPdo(
-            rows: [$this->row('products', 'name', 255, 'DYNAMIC')],
-            mysqlVersion: '5.7.42',
-            largePrefixValue: 'ON'
-        );
+        $pdo  = $this->buildPdo([$this->row('products', 'name', 255, 'DYNAMIC')], '5.7.42', 'ON');
         $logs = (new DetectVarcharIndexPrefixRule())->apply($pdo, new NullOutput());
 
         $this->assertCount(0, $logs);
@@ -122,11 +114,7 @@ final class DetectVarcharIndexPrefixRuleTest extends TestCase
     public function testFlagsVarchar255OnMySQL57WithLargePrefixButCompact(): void
     {
         // Large prefix enabled but COMPACT → limit still 767; 255 * 4 = 1020 > 767
-        $pdo  = $this->buildPdo(
-            rows: [$this->row('products', 'name', 255, 'COMPACT')],
-            mysqlVersion: '5.7.42',
-            largePrefixValue: 'ON'
-        );
+        $pdo  = $this->buildPdo([$this->row('products', 'name', 255, 'COMPACT')], '5.7.42', 'ON');
         $logs = (new DetectVarcharIndexPrefixRule())->apply($pdo, new NullOutput());
 
         $this->assertCount(1, $logs);
@@ -191,15 +179,7 @@ final class DetectVarcharIndexPrefixRuleTest extends TestCase
     public function testAlterStatementPreservesCollationAndNullability(): void
     {
         $pdo  = $this->buildPdo([
-            $this->row(
-                table: 'articles',
-                column: 'slug',
-                length: 255,
-                rowFormat: 'COMPACT',
-                nullable: false,
-                default: null,
-                collation: 'utf8mb4_unicode_ci'
-            ),
+            $this->row('articles', 'slug', 255, 'COMPACT', 'idx_col', false, false, null, 'utf8mb4_unicode_ci'),
         ]);
         $logs = (new DetectVarcharIndexPrefixRule())->apply($pdo, new NullOutput());
 
@@ -216,14 +196,7 @@ final class DetectVarcharIndexPrefixRuleTest extends TestCase
     public function testAlterStatementIncludesDefaultWhenPresent(): void
     {
         $pdo  = $this->buildPdo([
-            $this->row(
-                table: 'sessions',
-                column: 'token',
-                length: 255,
-                rowFormat: 'COMPACT',
-                nullable: true,
-                default: ''
-            ),
+            $this->row('sessions', 'token', 255, 'COMPACT', 'idx_col', false, true, ''),
         ]);
         $logs = (new DetectVarcharIndexPrefixRule())->apply($pdo, new NullOutput());
 
@@ -235,7 +208,7 @@ final class DetectVarcharIndexPrefixRuleTest extends TestCase
     public function testFromFieldDescribesIndexAndByteCount(): void
     {
         $pdo  = $this->buildPdo([
-            $this->row('users', 'email', 255, 'COMPACT', 'uniq_email', unique: true),
+            $this->row('users', 'email', 255, 'COMPACT', 'uniq_email', true),
         ]);
         $logs = (new DetectVarcharIndexPrefixRule())->apply($pdo, new NullOutput());
 

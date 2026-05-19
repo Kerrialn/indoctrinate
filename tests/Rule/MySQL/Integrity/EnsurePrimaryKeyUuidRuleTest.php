@@ -15,7 +15,7 @@ final class EnsurePrimaryKeyUuidRuleTest extends TestCase
     public function testSkipsTableFilteredBySkipTableLike(): void
     {
         // %session% is in default skip_table_like
-        $pdo = $this->buildPdo(tables: ['user_sessions'], childFks: [], pkCols: []);
+        $pdo = $this->buildPdo(['user_sessions'], [], []);
 
         $logs = (new EnsurePrimaryKeyUuidRule())->apply($pdo, new NullOutput());
 
@@ -25,10 +25,10 @@ final class EnsurePrimaryKeyUuidRuleTest extends TestCase
     public function testAlreadyCorrectUuidPkProducesOkLog(): void
     {
         $pdo = $this->buildPdo(
-            tables: ['users'],
-            childFks: [],
-            pkCols: ['id'],
-            colInfo: ['COLUMN_NAME' => 'id', 'COLUMN_TYPE' => 'char(36)', 'IS_NULLABLE' => 'NO', 'EXTRA' => ''],
+            ['users'],
+            [],
+            ['id'],
+            ['COLUMN_NAME' => 'id', 'COLUMN_TYPE' => 'char(36)', 'IS_NULLABLE' => 'NO', 'EXTRA' => '']
         );
 
         $logs = (new EnsurePrimaryKeyUuidRule())->apply($pdo, new NullOutput());
@@ -43,10 +43,10 @@ final class EnsurePrimaryKeyUuidRuleTest extends TestCase
     public function testNullableChar36PkIsMarkedForTighteningInDryMode(): void
     {
         $pdo = $this->buildPdo(
-            tables: ['users'],
-            childFks: [],
-            pkCols: ['id'],
-            colInfo: ['COLUMN_NAME' => 'id', 'COLUMN_TYPE' => 'char(36)', 'IS_NULLABLE' => 'YES', 'EXTRA' => ''],
+            ['users'],
+            [],
+            ['id'],
+            ['COLUMN_NAME' => 'id', 'COLUMN_TYPE' => 'char(36)', 'IS_NULLABLE' => 'YES', 'EXTRA' => '']
         );
 
         $logs = (new EnsurePrimaryKeyUuidRule())->apply($pdo, new NullOutput(), ['dry' => true]);
@@ -59,9 +59,9 @@ final class EnsurePrimaryKeyUuidRuleTest extends TestCase
     public function testTableWithNoPrimaryKeyIsLoggedInDryMode(): void
     {
         $pdo = $this->buildPdo(
-            tables: ['logs'],
-            childFks: [],
-            pkCols: [], // no PK
+            ['logs'],
+            [],
+            [] // no PK
         );
 
         $logs = (new EnsurePrimaryKeyUuidRule())->apply($pdo, new NullOutput(), ['dry' => true]);
@@ -76,10 +76,10 @@ final class EnsurePrimaryKeyUuidRuleTest extends TestCase
     {
         // PK is 'user_id' (int) with no child FKs → int-like, no children → dry log
         $pdo = $this->buildPdo(
-            tables: ['users'],
-            childFks: [],
-            pkCols: ['user_id'],
-            colInfo: ['COLUMN_NAME' => 'user_id', 'COLUMN_TYPE' => 'int unsigned', 'IS_NULLABLE' => 'NO', 'EXTRA' => ''],
+            ['users'],
+            [],
+            ['user_id'],
+            ['COLUMN_NAME' => 'user_id', 'COLUMN_TYPE' => 'int unsigned', 'IS_NULLABLE' => 'NO', 'EXTRA' => '']
         );
 
         $logs = (new EnsurePrimaryKeyUuidRule())->apply($pdo, new NullOutput(), ['dry' => true]);

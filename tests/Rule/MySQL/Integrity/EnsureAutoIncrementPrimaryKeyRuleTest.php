@@ -15,8 +15,8 @@ final class EnsureAutoIncrementPrimaryKeyRuleTest extends TestCase
     public function testSkipsTableWithProperIntAutoIncrementIdPk(): void
     {
         $pdo = $this->buildPdo(
-            tables: ['users'],
-            prepareCallback: function (string $sql) {
+            ['users'],
+            function (string $sql) {
                 // getPrimaryKeyColumns → single 'id'
                 if (strpos($sql, 'CONSTRAINT_TYPE') !== false) {
                     return $this->stmtReturningRows([['COLUMN_NAME' => 'id']]);
@@ -40,8 +40,8 @@ final class EnsureAutoIncrementPrimaryKeyRuleTest extends TestCase
         $emptyFetchStmt = $this->stmtReturningFetch(false);
 
         $pdo = $this->buildPdo(
-            tables: ['users'],
-            prepareCallback: function (string $sql) use ($emptyRowsStmt, $emptyFetchStmt) {
+            ['users'],
+            function (string $sql) use ($emptyRowsStmt, $emptyFetchStmt) {
                 // All PK queries return no columns
                 if (strpos($sql, 'CONSTRAINT_TYPE') !== false) {
                     return $emptyRowsStmt;
@@ -73,8 +73,8 @@ final class EnsureAutoIncrementPrimaryKeyRuleTest extends TestCase
         $fkStmt = $this->stmtReturningRows([['COLUMN_NAME' => 'user_id']]); // only 1 FK col → not pure join
 
         $pdo = $this->buildPdo(
-            tables: ['user_roles'],
-            prepareCallback: function (string $sql) use ($compositePkStmt, $fkStmt) {
+            ['user_roles'],
+            function (string $sql) use ($compositePkStmt, $fkStmt) {
                 if (strpos($sql, 'CONSTRAINT_TYPE') !== false) {
                     return $compositePkStmt; // always 2 PK cols
                 }
@@ -101,8 +101,8 @@ final class EnsureAutoIncrementPrimaryKeyRuleTest extends TestCase
 
         $callOrder = 0;
         $pdo = $this->buildPdo(
-            tables: ['user_tags'],
-            prepareCallback: function (string $sql) use ($pkStmt, $fkStmt, $allColsStmt, &$callOrder) {
+            ['user_tags'],
+            function (string $sql) use ($pkStmt, $fkStmt, $allColsStmt, &$callOrder) {
                 $callOrder++;
                 if (strpos($sql, 'CONSTRAINT_TYPE') !== false) {
                     return $pkStmt;

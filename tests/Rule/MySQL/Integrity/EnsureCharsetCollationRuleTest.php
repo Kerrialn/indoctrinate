@@ -15,10 +15,10 @@ final class EnsureCharsetCollationRuleTest extends TestCase
     public function testDetectsTableWithWrongCharset(): void
     {
         $pdo = $this->buildPdo(
-            tables: [
+            [
                 ['TABLE_NAME' => 'users', 'TABLE_COLLATION' => 'latin1_swedish_ci', 'CHARACTER_SET_NAME' => 'latin1'],
             ],
-            columns: []
+            []
         );
 
         $logs = (new EnsureCharsetCollationRule())->apply($pdo, new NullOutput());
@@ -36,10 +36,10 @@ final class EnsureCharsetCollationRuleTest extends TestCase
     public function testSkipsTableWithCorrectCharset(): void
     {
         $pdo = $this->buildPdo(
-            tables: [
+            [
                 ['TABLE_NAME' => 'users', 'TABLE_COLLATION' => 'utf8mb4_unicode_ci', 'CHARACTER_SET_NAME' => 'utf8mb4'],
             ],
-            columns: []
+            []
         );
 
         $logs = (new EnsureCharsetCollationRule())->apply($pdo, new NullOutput());
@@ -50,8 +50,8 @@ final class EnsureCharsetCollationRuleTest extends TestCase
     public function testDetectsColumnWithWrongCharset(): void
     {
         $pdo = $this->buildPdo(
-            tables: [],
-            columns: [
+            [],
+            [
                 [
                     'TABLE_NAME' => 'users',
                     'COLUMN_NAME' => 'name',
@@ -77,10 +77,10 @@ final class EnsureCharsetCollationRuleTest extends TestCase
     public function testSkipsTableMatchingSkipTableLikePattern(): void
     {
         $pdo = $this->buildPdo(
-            tables: [
+            [
                 ['TABLE_NAME' => 'cache_items', 'TABLE_COLLATION' => 'latin1_swedish_ci', 'CHARACTER_SET_NAME' => 'latin1'],
             ],
-            columns: []
+            []
         );
 
         // Default skip_table_like includes %cache%
@@ -92,10 +92,10 @@ final class EnsureCharsetCollationRuleTest extends TestCase
     public function testSkipsExactTableInSkipTables(): void
     {
         $pdo = $this->buildPdo(
-            tables: [
+            [
                 ['TABLE_NAME' => 'legacy', 'TABLE_COLLATION' => 'latin1_swedish_ci', 'CHARACTER_SET_NAME' => 'latin1'],
             ],
-            columns: []
+            []
         );
 
         $logs = (new EnsureCharsetCollationRule())->apply($pdo, new NullOutput(), [
@@ -108,11 +108,11 @@ final class EnsureCharsetCollationRuleTest extends TestCase
     public function testOnlyTablesFilterLimitsScope(): void
     {
         $pdo = $this->buildPdo(
-            tables: [
+            [
                 ['TABLE_NAME' => 'users', 'TABLE_COLLATION' => 'latin1_swedish_ci', 'CHARACTER_SET_NAME' => 'latin1'],
                 ['TABLE_NAME' => 'orders', 'TABLE_COLLATION' => 'latin1_swedish_ci', 'CHARACTER_SET_NAME' => 'latin1'],
             ],
-            columns: []
+            []
         );
 
         $logs = (new EnsureCharsetCollationRule())->apply($pdo, new NullOutput(), [
@@ -142,10 +142,10 @@ final class EnsureCharsetCollationRuleTest extends TestCase
     public function testCustomTargetCharsetAndCollation(): void
     {
         $pdo = $this->buildPdo(
-            tables: [
+            [
                 ['TABLE_NAME' => 'users', 'TABLE_COLLATION' => 'utf8mb4_unicode_ci', 'CHARACTER_SET_NAME' => 'utf8mb4'],
             ],
-            columns: []
+            []
         );
 
         // Targeting a different collation means utf8mb4_unicode_ci tables should now be flagged
@@ -161,10 +161,10 @@ final class EnsureCharsetCollationRuleTest extends TestCase
     public function testTableAndColumnMismatchesAreReturnedTogether(): void
     {
         $pdo = $this->buildPdo(
-            tables: [
+            [
                 ['TABLE_NAME' => 'users', 'TABLE_COLLATION' => 'latin1_swedish_ci', 'CHARACTER_SET_NAME' => 'latin1'],
             ],
-            columns: [
+            [
                 [
                     'TABLE_NAME' => 'users',
                     'COLUMN_NAME' => 'bio',

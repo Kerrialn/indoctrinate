@@ -2,8 +2,6 @@
 
 namespace Indoctrinate\Log;
 
-use Nette\Utils\Strings;
-
 final class Log
 {
     /**
@@ -69,7 +67,7 @@ final class Log
     {
         return sprintf(
             '[%s] %s.%s: %s → %s',
-            Strings::replace($this->getRule(), '#_#', ' '),
+            str_replace('_', ' ', $this->getRule()),
             $this->getTable(),
             $this->getColumn(),
             $this->getFrom(),
