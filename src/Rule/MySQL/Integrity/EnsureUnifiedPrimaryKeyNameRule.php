@@ -37,7 +37,6 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
 
     public static function isDestructive(): bool
     {
-        // We drop a column (`uuid`) after switching to `id`.
         return true;
     }
 
@@ -52,15 +51,32 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
         $debug = (bool) ($context['debug'] ?? false);
         $dry = (bool) ($context['dry'] ?? false);
 
+        // Phase flags — null means "not explicitly set" (triggers auto-detect mode).
+        $runExpand = isset($context['expand']) ? (bool) $context['expand'] : null;
+        $runContract = isset($context['contract']) ? (bool) $context['contract'] : null;
+        $runRemove = isset($context['remove']) ? (bool) $context['remove'] : null;
+        $autoDetect = ($runExpand === null && $runContract === null && $runRemove === null);
+
         $allow = function (string $table) use ($onlyTables, $onlyLike, $skipTables, $skipLike): bool {
             $t = strtolower($table);
-            if ($skipTables && in_array($t, $skipTables, true)) return false;
-            foreach ($skipLike as $pat) if ($this->likeMatch($table, $pat)) return false;
-
+            if ($skipTables && in_array($t, $skipTables, true)) {
+                return false;
+            }
+            foreach ($skipLike as $pat) {
+                if ($this->likeMatch($table, $pat)) {
+                    return false;
+                }
+            }
             $hasOnly = ($onlyTables !== [] || $onlyLike !== []);
             if ($hasOnly) {
-                if ($onlyTables && in_array($t, $onlyTables, true)) return true;
-                foreach ($onlyLike as $pat) if ($this->likeMatch($table, $pat)) return true;
+                if ($onlyTables && in_array($t, $onlyTables, true)) {
+                    return true;
+                }
+                foreach ($onlyLike as $pat) {
+                    if ($this->likeMatch($table, $pat)) {
+                        return true;
+                    }
+                }
                 return false;
             }
             return true;
@@ -78,118 +94,146 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
 
         foreach ($tables as $table) {
             $pkCols = $this->getPrimaryKeyColumns($pdo, $table);
+            $uuidIsPk = \count($pkCols) === 1 && $pkCols[0] === 'uuid';
+            $idIsPk = \count($pkCols) === 1 && $pkCols[0] === 'id';
 
-            // Only handle the specific case: single-column PK named `uuid` (CHAR(36)).
-            if (\count($pkCols) !== 1 || $pkCols[0] !== 'uuid') {
+            if (! $uuidIsPk && ! $idIsPk) {
                 if ($debug) {
-                    $output->writeln("[$table] skip: PK not a single `uuid` column");
-                }
-                continue; // do not add a Log → keeps Findings clean
-            }
-
-            $uuidInfo = $this->getColumnInfo($pdo, $table, 'uuid');
-            if (! $uuidInfo || ! $this->isChar36((string) $uuidInfo['COLUMN_TYPE'])) {
-                if ($debug) {
-                    $output->writeln("[$table] skip: `uuid` not CHAR(36)");
+                    $output->writeln("[$table] skip: PK is not a single `uuid` or `id` column");
                 }
                 continue;
             }
 
-            // 0) Ensure `id` exists and is populated from `uuid` (nullable until PK switch).
+            if ($uuidIsPk) {
+                $hasId = $this->columnExists($pdo, $table, 'id');
+
+                // --- Expand phase ---
+                $shouldExpand = $autoDetect ? ! $hasId : (bool) $runExpand;
+                if ($shouldExpand && ! $hasId) {
+                    $uuidInfo = $this->getColumnInfo($pdo, $table, 'uuid');
+                    if (! $uuidInfo || ! $this->isChar36((string) $uuidInfo['COLUMN_TYPE'])) {
+                        if ($debug) {
+                            $output->writeln("[$table] skip expand: `uuid` is not CHAR(36)");
+                        }
+                        continue;
+                    }
+
+                    if ($dry) {
+                        $output->writeln("[$table] DRY expand: WOULD ADD `id` CHAR(36) NULL and backfill from `uuid`");
+                    } else {
+                        $pdo->exec(sprintf("ALTER TABLE `%s` ADD COLUMN `id` CHAR(36) NULL", $this->qt($table)));
+                        $pdo->exec(sprintf("UPDATE `%s` SET `id` = `uuid`", $this->qt($table)));
+                        $output->writeln("[$table] expand: `id` added and backfilled — deploy your app to write to `id` before contracting");
+                    }
+
+                    $results[] = new Log(self::getName(), $table, 'uuid→id', 'expand', $dry ? 'DRY: would add and backfill `id`' : 'added `id`, backfilled from `uuid`');
+                    $hasId = ! $dry;
+                }
+
+                // --- Contract phase ---
+                $shouldContract = $autoDetect ? $hasId : (bool) $runContract;
+                if ($shouldContract && $hasId) {
+                    $idInfo = $this->getColumnInfo($pdo, $table, 'id');
+                    if (! $idInfo || ! $this->isChar36((string) $idInfo['COLUMN_TYPE'])) {
+                        if ($debug) {
+                            $output->writeln("[$table] skip contract: `id` column is not CHAR(36) — may not have been added by expand");
+                        }
+                        continue;
+                    }
+
+                    $children = $this->getChildFkMeta($pdo, $table, 'uuid');
+
+                    foreach ($children as $fk) {
+                        $childTable = (string) $fk['TABLE_NAME'];
+                        $fkName = (string) $fk['CONSTRAINT_NAME'];
+                        if ($dry) {
+                            $output->writeln("[$childTable] DRY contract: WOULD DROP FOREIGN KEY `{$fkName}`");
+                        } else {
+                            $pdo->exec(sprintf("ALTER TABLE `%s` DROP FOREIGN KEY `%s`", $this->qt($childTable), $this->qt($fkName)));
+                        }
+                    }
+
+                    if ($dry) {
+                        $output->writeln("[$table] DRY contract: WOULD DROP PRIMARY KEY, MODIFY `id` CHAR(36) NOT NULL, ADD PRIMARY KEY(`id`)");
+                    } else {
+                        $pdo->exec(sprintf("ALTER TABLE `%s` DROP PRIMARY KEY", $this->qt($table)));
+                        $pdo->exec(sprintf("ALTER TABLE `%s` MODIFY `id` CHAR(36) NOT NULL, ADD PRIMARY KEY (`id`)", $this->qt($table)));
+                    }
+
+                    foreach ($children as $fk) {
+                        $childTable = (string) $fk['TABLE_NAME'];
+                        $childCol = (string) $fk['COLUMN_NAME'];
+                        $origName = (string) $fk['CONSTRAINT_NAME'];
+                        $onDelete = strtoupper((string) ($fk['DELETE_RULE'] ?? 'RESTRICT'));
+                        $onUpdate = strtoupper((string) ($fk['UPDATE_RULE'] ?? 'RESTRICT'));
+
+                        if (! $dry && ! $this->hasIndexOnColumns($pdo, $childTable, [$childCol], false)) {
+                            $idxName = $this->makeConstraintName($childTable, $childCol, 'idx');
+                            $pdo->exec(sprintf(
+                                "ALTER TABLE `%s` ADD INDEX `%s` (`%s`)",
+                                $this->qt($childTable),
+                                $this->qt($idxName),
+                                $this->qt($childCol)
+                            ));
+                        }
+
+                        $fkSql = sprintf(
+                            "ALTER TABLE `%s` ADD CONSTRAINT `%s` FOREIGN KEY (`%s`) REFERENCES `%s`(`id`)",
+                            $this->qt($childTable),
+                            $this->qt($origName),
+                            $this->qt($childCol),
+                            $this->qt($table)
+                        );
+                        if ($onDelete && $onDelete !== 'NO ACTION') {
+                            $fkSql .= " ON DELETE {$onDelete}";
+                        }
+                        if ($onUpdate && $onUpdate !== 'NO ACTION') {
+                            $fkSql .= " ON UPDATE {$onUpdate}";
+                        }
+
+                        if ($dry) {
+                            $output->writeln("[$childTable] DRY contract: WOULD ADD FK `{$origName}` (`{$childCol}`) → `{$table}`(`id`) ON DELETE {$onDelete} ON UPDATE {$onUpdate}");
+                        } else {
+                            $pdo->exec($fkSql);
+                        }
+                    }
+
+                    if (! $dry) {
+                        $output->writeln("[$table] contract: PK switched to `id`, child FKs rebuilt — deploy your app to use `id` before removing `uuid`");
+                    }
+
+                    $results[] = new Log(self::getName(), $table, 'uuid→id', 'contract', $dry ? 'DRY: would switch PK to `id` and rebuild FKs' : 'PK switched to `id`, child FKs rebuilt');
+                }
+
+                continue;
+            }
+
+            // $idIsPk from here
+            $hasUuid = $this->columnExists($pdo, $table, 'uuid');
+
+            if (! $hasUuid) {
+                if ($debug) {
+                    $output->writeln("[$table] migration already complete");
+                }
+                continue;
+            }
+
+            // --- Remove phase ---
+            $shouldRemove = $autoDetect ? true : (bool) $runRemove;
+            if (! $shouldRemove) {
+                $output->writeln("[$table] `uuid` column still present — set remove: true to drop it once your app no longer references it");
+                $results[] = new Log(self::getName(), $table, 'uuid', 'pending remove', 'set remove: true to drop `uuid`');
+                continue;
+            }
+
             if ($dry) {
-                if (! $this->columnExists($pdo, $table, 'id')) {
-                    $output->writeln("[$table] DRY: WOULD ADD `id` CHAR(36) NULL");
-                }
-                $output->writeln("[$table] DRY: WOULD backfill `id` = `uuid` WHERE `id` IS NULL OR = ''");
-            } else {
-                if (! $this->columnExists($pdo, $table, 'id')) {
-                    $pdo->exec(sprintf("ALTER TABLE `%s` ADD COLUMN `id` CHAR(36) NULL", $this->qt($table)));
-                }
-                $pdo->exec(sprintf(
-                    "UPDATE `%s` SET `id` = `uuid` WHERE `id` IS NULL OR `id` = ''",
-                    $this->qt($table)
-                ));
-            }
-
-            // 1) Snapshot child FKs (pointing to <table>.uuid)
-            $children = $this->getChildFkMeta($pdo, $table, 'uuid');
-
-            // 2) Drop child FKs to unblock PK change
-            foreach ($children as $fk) {
-                $childTable = $fk['TABLE_NAME'];
-                $fkName = $fk['CONSTRAINT_NAME'];
-                if ($dry) {
-                    $output->writeln("[$childTable] DRY: WOULD DROP FOREIGN KEY `{$fkName}` (→ {$table}.uuid)");
-                } else {
-                    $pdo->exec(sprintf(
-                        "ALTER TABLE `%s` DROP FOREIGN KEY `%s`",
-                        $this->qt($childTable),
-                        $this->qt($fkName)
-                    ));
-                }
-            }
-
-            // 3) Switch parent PK: uuid → id
-            if ($dry) {
-                $output->writeln("[$table] DRY: WOULD DROP PRIMARY KEY, MODIFY `id` CHAR(36) NOT NULL, ADD PRIMARY KEY(`id`)");
-            } else {
-                $pdo->exec(sprintf("ALTER TABLE `%s` DROP PRIMARY KEY", $this->qt($table)));
-                $pdo->exec(sprintf(
-                    "ALTER TABLE `%s` MODIFY `id` CHAR(36) NOT NULL, ADD PRIMARY KEY (`id`)",
-                    $this->qt($table)
-                ));
-            }
-
-            // 4) Recreate child FKs to reference <table>.id
-            foreach ($children as $fk) {
-                $childTable = (string) $fk['TABLE_NAME'];
-                $childCol = (string) $fk['COLUMN_NAME'];
-                $origName = (string) $fk['CONSTRAINT_NAME']; // re-use original name to avoid duplicate-name collisions
-                $onDelete = strtoupper((string) ($fk['DELETE_RULE'] ?? 'RESTRICT'));
-                $onUpdate = strtoupper((string) ($fk['UPDATE_RULE'] ?? 'RESTRICT'));
-
-                // Ensure child column is indexed (required by MySQL)
-                if (! $dry && ! $this->hasIndexOnColumns($pdo, $childTable, [$childCol], false)) {
-                    $idxName = $this->makeConstraintName($childTable, $childCol, 'idx');
-                    $pdo->exec(sprintf(
-                        "ALTER TABLE `%s` ADD INDEX `%s` (`%s`)",
-                        $this->qt($childTable),
-                        $this->qt($idxName),
-                        $this->qt($childCol)
-                    ));
-                }
-
-                $fkSql = sprintf(
-                    "ALTER TABLE `%s` ADD CONSTRAINT `%s` FOREIGN KEY (`%s`) REFERENCES `%s`(`id`)",
-                    $this->qt($childTable),
-                    $this->qt($origName),
-                    $this->qt($childCol),
-                    $this->qt($table)
-                );
-
-                if ($onDelete && $onDelete !== 'NO ACTION') $fkSql .= " ON DELETE $onDelete";
-                if ($onUpdate && $onUpdate !== 'NO ACTION') $fkSql .= " ON UPDATE $onUpdate";
-
-                if ($dry) {
-                    $output->writeln("[$childTable] DRY: WOULD ADD FK `{$origName}` (`$childCol`) → `$table`(`id`) ON DELETE $onDelete ON UPDATE $onUpdate");
-                } else {
-                    $pdo->exec($fkSql);
-                }
-            }
-
-            // 5) Drop old column
-            if ($dry) {
-                $output->writeln("[$table] DRY: WOULD DROP COLUMN `uuid`");
+                $output->writeln("[$table] DRY remove: WOULD DROP COLUMN `uuid`");
             } else {
                 $pdo->exec(sprintf("ALTER TABLE `%s` DROP COLUMN `uuid`", $this->qt($table)));
+                $output->writeln("[$table] remove: `uuid` column dropped — migration complete");
             }
 
-            // Record a single actionable log for the rename.
-            $results[] = new Log(self::getName(), $table, 'uuid→id', 'done', 'renamed PK `uuid` to `id`, rebuilt child FKs');
-
-            if ($debug) {
-                $output->writeln("  → [$table] rename complete");
-            }
+            $results[] = new Log(self::getName(), $table, 'uuid→id', 'remove', $dry ? 'DRY: would drop `uuid`' : '`uuid` column dropped');
         }
 
         return $results;
@@ -237,10 +281,14 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
         $needle = array_map('strtolower', $cols);
         foreach ($byIdx as $info) {
             $isUnique = (bool) $info['_unique'];
-            if ($requireUnique && ! $isUnique) continue;
+            if ($requireUnique && ! $isUnique) {
+                continue;
+            }
             unset($info['_unique']);
             ksort($info);
-            if (array_values($info) === $needle) return true;
+            if (array_values($info) === $needle) {
+                return true;
+            }
         }
         return false;
     }
@@ -327,7 +375,9 @@ final class EnsureUnifiedPrimaryKeyNameRule implements RuleInterface
             fn($p) => trim(preg_replace('~[^A-Za-z0-9_]+~', '_', $p), '_'),
             $parts
         ));
-        if (strlen($base) <= 64) return $base;
+        if (strlen($base) <= 64) {
+            return $base;
+        }
         $hash = substr(md5($base), 0, 8);
         $keep = 64 - 1 - strlen($hash);
         return substr($base, 0, $keep) . '_' . $hash;

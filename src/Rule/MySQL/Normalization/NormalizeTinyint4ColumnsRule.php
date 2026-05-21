@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace Indoctrinate\Rule\MySQL\Normalization;
 
 use Indoctrinate\Log\Log;
+use Indoctrinate\Rule\Contract\BreaksExpandContractPatternInterface;
 use Indoctrinate\Rule\Contract\RuleInterface;
 use PDO;
 use Symfony\Component\Console\Output\OutputInterface;
 
-final class NormalizeTinyint4ColumnsRule implements RuleInterface
+final class NormalizeTinyint4ColumnsRule implements RuleInterface, BreaksExpandContractPatternInterface
 {
     public static function getName(): string
     {

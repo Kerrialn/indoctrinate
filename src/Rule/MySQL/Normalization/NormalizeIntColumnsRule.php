@@ -3,11 +3,12 @@
 namespace Indoctrinate\Rule\MySQL\Normalization;
 
 use Indoctrinate\Log\Log;
+use Indoctrinate\Rule\Contract\BreaksExpandContractPatternInterface;
 use Indoctrinate\Rule\Contract\RuleInterface;
 use PDO;
 use Symfony\Component\Console\Output\OutputInterface;
 
-final class NormalizeIntColumnsRule implements RuleInterface
+final class NormalizeIntColumnsRule implements RuleInterface, BreaksExpandContractPatternInterface
 {
     public static function getName(): string
     {

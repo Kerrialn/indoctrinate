@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace Indoctrinate\Rule\MySQL\Integrity;
 
 use Indoctrinate\Log\Log;
+use Indoctrinate\Rule\Contract\BreaksExpandContractPatternInterface;
 use Indoctrinate\Rule\Contract\RuleInterface;
 use Indoctrinate\Rule\MySQL\Integrity\Constraint\DetectVarcharIndexPrefixRuleConstraints;
 use PDO;
 use Symfony\Component\Console\Output\OutputInterface;
 
-final class DetectVarcharIndexPrefixRule implements RuleInterface
+final class DetectVarcharIndexPrefixRule implements RuleInterface, BreaksExpandContractPatternInterface
 {
     public static function getName(): string
     {

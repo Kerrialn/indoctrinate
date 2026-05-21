@@ -33,7 +33,7 @@ final class DoctrineCompatibilitySet implements SetInterface
 
     public function getDescription(): string
     {
-        return 'Read-only audit of all schema issues that prevent clean Doctrine ORM integration (always runs dry).';
+        return 'Fixes all schema issues that prevent clean Doctrine ORM integration. Use --dry to audit without making changes.';
     }
 
     /**
@@ -56,7 +56,7 @@ final class DoctrineCompatibilitySet implements SetInterface
 
     public function isAlwaysDry(): bool
     {
-        return true;
+        return false;
     }
 
     /**
@@ -72,9 +72,6 @@ final class DoctrineCompatibilitySet implements SetInterface
      */
     public function execute(PDO $pdo, OutputInterface $io, array $context = []): array
     {
-        // Always dry — this set is a read-only compatibility audit
-        $context['dry'] = true;
-
         $logs = [];
 
         foreach ($this->getRules() as $ruleClass) {
@@ -86,9 +83,6 @@ final class DoctrineCompatibilitySet implements SetInterface
             if ($constraint instanceof RuleConstraintInterface) {
                 $ruleCtx = array_replace($ruleCtx, $constraint->toContext());
             }
-
-            // Constraint config must not override dry — this set is always read-only
-            $ruleCtx['dry'] = true;
 
             $logs = array_merge($logs, $rule->apply($pdo, $io, $ruleCtx));
         }

@@ -5,6 +5,7 @@ namespace Indoctrinate\Command;
 use Indoctrinate\Config\ConnectionCredentials;
 use Indoctrinate\Config\Context;
 use Indoctrinate\Config\IndoctrinateConfig;
+use Indoctrinate\Rule\Contract\BreaksExpandContractPatternInterface;
 use Indoctrinate\Rule\Contract\RuleConstraintInterface;
 use Indoctrinate\Rule\Contract\RuleInterface;
 use Indoctrinate\Set\Contract\SetInterface;
@@ -263,6 +264,17 @@ class DatabaseAnalyzerCommand extends Command
 
                 $set->config(is_array($rulesConfiguration) ? $rulesConfiguration : []);
 
+                if (! $isDry) {
+                    foreach ($set->getRules() as $ruleClass) {
+                        if (is_a($ruleClass, BreaksExpandContractPatternInterface::class, true)) {
+                            $io->warning(sprintf(
+                                '%s does not follow the Expand/Contract pattern — it modifies existing columns or table properties in-place and may lock tables. Ensure you have a backup before continuing.',
+                                $ruleClass::getName()
+                            ));
+                        }
+                    }
+                }
+
                 // Pass your map straight through; the set will pick constraints by Rule FQCN.
                 $setContext = [
                     'dry' => $this->config->getContext()->isDry(),
@@ -427,6 +439,13 @@ class DatabaseAnalyzerCommand extends Command
             }
             $context = $ruleContext;
             $context['dry'] = $isDry; // force CLI flag
+
+            if (! $isDry && $rule instanceof BreaksExpandContractPatternInterface) {
+                $io->warning(sprintf(
+                    '%s does not follow the Expand/Contract pattern — it modifies existing columns or table properties in-place and may lock tables. Ensure you have a backup before continuing.',
+                    $ruleClass::getName()
+                ));
+            }
 
             $useTransaction = ! $ruleClass::isDestructive() && ! $isDry;
 

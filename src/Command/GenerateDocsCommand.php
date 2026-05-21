@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Indoctrinate\Command;
 
+use Indoctrinate\Rule\Contract\BreaksExpandContractPatternInterface;
 use Indoctrinate\Rule\Contract\RuleInterface;
 use Indoctrinate\Set\Contract\SetInterface;
 use Symfony\Component\Console\Command\Command;
@@ -130,7 +131,10 @@ class GenerateDocsCommand extends Command
             $lines[] = '**Rules included:**';
             $lines[] = '';
             foreach ($set->getRules() as $ruleClass) {
-                $lines[] = sprintf('- `%s` — %s', $ruleClass::getName(), $ruleClass::getDescription());
+                $ecNote = is_a($ruleClass, BreaksExpandContractPatternInterface::class, true)
+                    ? ' ⚠ *modifies in-place, does not follow Expand/Contract*'
+                    : '';
+                $lines[] = sprintf('- `%s` — %s%s', $ruleClass::getName(), $ruleClass::getDescription(), $ecNote);
             }
             $lines[] = '';
             $lines[] = '---';
@@ -156,15 +160,17 @@ class GenerateDocsCommand extends Command
             foreach ($categories as $category => $categoryRules) {
                 $lines[] = sprintf('#### %s', $category);
                 $lines[] = '';
-                $lines[] = '| Rule | Destructive | Description |';
-                $lines[] = '|------|-------------|-------------|';
+                $lines[] = '| Rule | Destructive | Expand/Contract | Description |';
+                $lines[] = '|------|-------------|-----------------|-------------|';
 
                 foreach ($categoryRules as $rule) {
                     $destructive = $rule::isDestructive() ? 'Yes' : 'No';
+                    $ec = ($rule instanceof BreaksExpandContractPatternInterface) ? '⚠ Breaks' : 'Safe';
                     $lines[] = sprintf(
-                        '| `%s` | %s | %s |',
+                        '| `%s` | %s | %s | %s |',
                         $rule::getName(),
                         $destructive,
+                        $ec,
                         $rule::getDescription()
                     );
                 }

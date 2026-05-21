@@ -8,17 +8,18 @@ A set is a curated group of rules that run together. Register a set in `indoctri
 
 ### `doctrine_compatibility`
 
-Read-only audit of all schema issues that prevent clean Doctrine ORM integration (always runs dry).
+Fixes all schema issues that prevent clean Doctrine ORM integration. Use --dry to audit without making changes.
 
 **Rules included:**
 
-- `ensure_transactional_engines` — ensures that tables use InnoDB with a safe row format
-- `ensure_charset_collation` — ensures all tables and text columns use a consistent character set and collation
+- `ensure_transactional_engines` — ensures that tables use InnoDB with a safe row format ⚠ *modifies in-place, does not follow Expand/Contract*
+- `ensure_charset_collation` — ensures all tables and text columns use a consistent character set and collation ⚠ *modifies in-place, does not follow Expand/Contract*
+- `detect_varchar_index_prefix` — detects VARCHAR/CHAR columns in indexes whose byte length exceeds the index prefix limit — common cause of failures after converting to utf8mb4 ⚠ *modifies in-place, does not follow Expand/Contract*
 - `ensure_index_on_foreign_key` — ensures every foreign key column is covered by an index to prevent full-table scans on JOINs
 - `ensure_auto_increment_primary_key` — ensures that tables have an int auto-increment primary key
 - `ensure_unified_primary_key_name` — renames CHAR(36) primary keys named `uuid` to `id`, preserving child foreign keys
-- `normalize_int_columns` — ensures that INT columns are normalized
-- `convert_temporal_columns_to_datetime` — Convert DATE/TIMESTAMP to DATETIME, tidy defaults and ON UPDATE.
+- `normalize_int_columns` — ensures that INT columns are normalized ⚠ *modifies in-place, does not follow Expand/Contract*
+- `convert_temporal_columns_to_datetime` — Converts DATE/TIMESTAMP columns to DATETIME using Expand/Contract. Fixes bad defaults on existing DATETIME columns in-place.
 - `fix_missing_foreign_key_rows` — ensures that foreign key constraints are not violated by inserting a stub row
 
 ---
@@ -30,7 +31,7 @@ Normalise legacy DATE/DATETIME/TIMESTAMP values, then convert all temporal colum
 **Rules included:**
 
 - `normalize_temporal_values` — Normalise legacy/invalid DATE/DATETIME/TIMESTAMP values.
-- `convert_temporal_columns_to_datetime` — Convert DATE/TIMESTAMP to DATETIME, tidy defaults and ON UPDATE.
+- `convert_temporal_columns_to_datetime` — Converts DATE/TIMESTAMP columns to DATETIME using Expand/Contract. Fixes bad defaults on existing DATETIME columns in-place.
 
 ---
 
@@ -53,34 +54,35 @@ Individual rules can be registered in `indoctrinate.php` under `$config->rules([
 
 #### Discovery
 
-| Rule | Destructive | Description |
-|------|-------------|-------------|
-| `classify_date_storage_across_schema` | No | classifies date storage across all tables in a schema |
+| Rule | Destructive | Expand/Contract | Description |
+|------|-------------|-----------------|-------------|
+| `classify_date_storage_across_schema` | No | Safe | classifies date storage across all tables in a schema |
 
 #### Integrity
 
-| Rule | Destructive | Description |
-|------|-------------|-------------|
-| `convert_temporal_columns_to_datetime` | Yes | Convert DATE/TIMESTAMP to DATETIME, tidy defaults and ON UPDATE. |
-| `ensure_auto_increment_primary_key` | Yes | ensures that tables have an int auto-increment primary key |
-| `ensure_charset_collation` | Yes | ensures all tables and text columns use a consistent character set and collation |
-| `ensure_index_on_foreign_key` | Yes | ensures every foreign key column is covered by an index to prevent full-table scans on JOINs |
-| `ensure_primary_key_uuid` | Yes | ensures that tables have a UUID primary key |
-| `ensure_transactional_engines` | Yes | ensures that tables use InnoDB with a safe row format |
-| `ensure_unified_primary_key_name` | Yes | renames CHAR(36) primary keys named `uuid` to `id`, preserving child foreign keys |
-| `fix_missing_foreign_key_rows` | No | ensures that foreign key constraints are not violated by inserting a stub row |
-| `normalize_temporal_values` | No | Normalise legacy/invalid DATE/DATETIME/TIMESTAMP values. |
+| Rule | Destructive | Expand/Contract | Description |
+|------|-------------|-----------------|-------------|
+| `convert_temporal_columns_to_datetime` | Yes | Safe | Converts DATE/TIMESTAMP columns to DATETIME using Expand/Contract. Fixes bad defaults on existing DATETIME columns in-place. |
+| `detect_varchar_index_prefix` | No | ⚠ Breaks | detects VARCHAR/CHAR columns in indexes whose byte length exceeds the index prefix limit — common cause of failures after converting to utf8mb4 |
+| `ensure_auto_increment_primary_key` | Yes | Safe | ensures that tables have an int auto-increment primary key |
+| `ensure_charset_collation` | Yes | ⚠ Breaks | ensures all tables and text columns use a consistent character set and collation |
+| `ensure_index_on_foreign_key` | Yes | Safe | ensures every foreign key column is covered by an index to prevent full-table scans on JOINs |
+| `ensure_primary_key_uuid` | Yes | Safe | ensures that tables have a UUID primary key |
+| `ensure_transactional_engines` | Yes | ⚠ Breaks | ensures that tables use InnoDB with a safe row format |
+| `ensure_unified_primary_key_name` | Yes | Safe | renames CHAR(36) primary keys named `uuid` to `id`, preserving child foreign keys |
+| `fix_missing_foreign_key_rows` | No | Safe | ensures that foreign key constraints are not violated by inserting a stub row |
+| `normalize_temporal_values` | No | Safe | Normalise legacy/invalid DATE/DATETIME/TIMESTAMP values. |
 
 #### Normalization
 
-| Rule | Destructive | Description |
-|------|-------------|-------------|
-| `normalize_int_columns` | Yes | ensures that INT columns are normalized |
-| `normalize_tinyint4_columns` | No | flags TINYINT columns with a display width (e.g. tinyint(4)) — deprecated in MySQL 8; tinyint(1) is skipped as Doctrine uses it for boolean mapping |
-| `slugify_field` | No | creates a slug column from a source column, and ensures it is unique |
+| Rule | Destructive | Expand/Contract | Description |
+|------|-------------|-----------------|-------------|
+| `normalize_int_columns` | Yes | ⚠ Breaks | ensures that INT columns are normalized |
+| `normalize_tinyint4_columns` | No | ⚠ Breaks | flags TINYINT columns with a display width (e.g. tinyint(4)) — deprecated in MySQL 8; tinyint(1) is skipped as Doctrine uses it for boolean mapping |
+| `slugify_field` | No | Safe | creates a slug column from a source column, and ensures it is unique |
 
 #### Validation
 
-| Rule | Destructive | Description |
-|------|-------------|-------------|
-| `detect_orphaned_child_rows` | No | detects orphaned child rows |
+| Rule | Destructive | Expand/Contract | Description |
+|------|-------------|-----------------|-------------|
+| `detect_orphaned_child_rows` | No | Safe | detects orphaned child rows |
