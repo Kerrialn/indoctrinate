@@ -1,6 +1,8 @@
 # Indoctrinate
 
-An automated package helps you align your database with Doctrine or simply fix database issues.
+A rule-based CLI tool that audits and fixes MySQL schema issues — enforcing consistent charsets and collations, adding missing indexes, standardising primary keys, and more. Run rules individually or as curated sets, dry-run to preview changes before applying them, and configure each rule to match your schema conventions.
+
+Built for teams migrating legacy databases to [Doctrine ORM](https://www.doctrine-project.org/projects/orm.html), but useful for any MySQL project that needs a healthier schema.
 
 ## Installation
 
