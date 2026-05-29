@@ -33,7 +33,7 @@ final class DoctrineCompatibilitySet implements SetInterface
 
     public function getDescription(): string
     {
-        return 'Fixes all schema issues that prevent clean Doctrine ORM integration. Use --dry to audit without making changes.';
+        return 'Fixes all schema issues that prevent clean Doctrine ORM integration. Run with --fix to apply changes.';
     }
 
     /**

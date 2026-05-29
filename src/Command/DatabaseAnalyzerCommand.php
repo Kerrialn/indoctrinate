@@ -5,6 +5,7 @@ namespace Indoctrinate\Command;
 use Indoctrinate\Config\ConnectionCredentials;
 use Indoctrinate\Config\Context;
 use Indoctrinate\Config\IndoctrinateConfig;
+use Indoctrinate\Pdo\CapturingPdo;
 use Indoctrinate\Rule\Contract\BreaksExpandContractPatternInterface;
 use Indoctrinate\Rule\Contract\RuleConstraintInterface;
 use Indoctrinate\Rule\Contract\RuleInterface;
@@ -24,7 +25,7 @@ use Symfony\Component\Filesystem\Filesystem;
 
 class DatabaseAnalyzerCommand extends Command
 {
-    protected static $defaultName = 'fix';
+    protected static $defaultName = 'analyze';
 
     private ?IndoctrinateConfig $config = null;
 
@@ -33,8 +34,8 @@ class DatabaseAnalyzerCommand extends Command
     protected function configure(): void
     {
         $this
-            ->setDescription('Analyzes & fixes issues in database configuration')
-            ->addOption('dry', null, InputOption::VALUE_NONE, 'Analyze without fixes')
+            ->setDescription('Analyzes database issues (dry run by default — use --fix to apply changes)')
+            ->addOption('fix', null, InputOption::VALUE_NONE, 'Apply fixes (default is dry-run analysis only)')
             ->addOption('log', null, InputOption::VALUE_OPTIONAL, 'Log output to file')
             ->addOption('prod', null, InputOption::VALUE_NONE, 'Prod mode (override connection from indoctrinate.php)')
             ->addOption('dsn', null, InputOption::VALUE_REQUIRED, 'DSN, e.g. mysql://user:pass@host:3306/db')
@@ -44,14 +45,26 @@ class DatabaseAnalyzerCommand extends Command
             ->addOption('db-user', null, InputOption::VALUE_REQUIRED, 'DB user')
             ->addOption('db-pass', null, InputOption::VALUE_OPTIONAL, 'DB password (prefer --db-pass-file)')
             ->addOption('db-pass-file', null, InputOption::VALUE_OPTIONAL, 'Path to file containing DB password')
-            ->addOption('report', null, InputOption::VALUE_NONE, 'Output a summary table of findings per rule (exits non-zero if any findings)');
+            ->addOption('report', null, InputOption::VALUE_NONE, 'Output a summary table of findings per rule (exits non-zero if any findings)')
+            ->addOption('sql-dump', null, InputOption::VALUE_OPTIONAL, 'Capture planned SQL and write to a .sql file (default: indoctrinate-<timestamp>.sql)', false)
+            ->addOption('migration', null, InputOption::VALUE_OPTIONAL, 'Capture planned SQL and write a Doctrine migration class (default dir: migrations/)', false);
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $isDry = (bool) $input->getOption('dry');
+        $isDry = ! (bool) $input->getOption('fix');
         $isReport = (bool) $input->getOption('report');
+        $sqlDumpOption = $input->getOption('sql-dump');
+        $migrationOption = $input->getOption('migration');
+        $isSqlDump = $sqlDumpOption !== false;
+        $isMigration = $migrationOption !== false;
+        $isCapturing = $isSqlDump || $isMigration;
+
+        if ($isCapturing && $isReport) {
+            $io->error('--sql-dump / --migration cannot be combined with --report.');
+            return Command::FAILURE;
+        }
         $logDir = $input->getOption('log');
         $isProd = (bool) $input->getOption('prod');
         $logHandle = null;
@@ -72,9 +85,7 @@ class DatabaseAnalyzerCommand extends Command
             return Command::SUCCESS;
         }
 
-        // inside execute()
-
-// Load config
+        // Load config
         $this->config = new IndoctrinateConfig();
         $context = new Context($isDry, $isProd, $logDir, $configFilePath, $dsn);
         $this->config->setContext($context);
@@ -122,15 +133,29 @@ class DatabaseAnalyzerCommand extends Command
         }
 
         // Connect
+        $capturingPdo = null;
+        /** @var list<string> $allCapturedSql */
+        $allCapturedSql = [];
+
         try {
-            $pdo = new \PDO(
-                $this->config->getDsn(),
-                $credentials->getUser(),
-                $credentials->getPassword(),
-                [
-                    \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
-                ]
-            );
+            $pdoOptions = [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION];
+
+            if ($isCapturing) {
+                $capturingPdo = new CapturingPdo(
+                    $this->config->getDsn(),
+                    $credentials->getUser(),
+                    $credentials->getPassword(),
+                    $pdoOptions
+                );
+                $pdo = $capturingPdo;
+            } else {
+                $pdo = new \PDO(
+                    $this->config->getDsn(),
+                    $credentials->getUser(),
+                    $credentials->getPassword(),
+                    $pdoOptions
+                );
+            }
         } catch (\PDOException $e) {
             $io->error("Could not connect to database: " . $e->getMessage());
             return Command::FAILURE;
@@ -142,7 +167,7 @@ class DatabaseAnalyzerCommand extends Command
         $activeDriver = $pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);
 
         // ===================== DESTRUCTIVE ACTION PRE-FLIGHT CHECK ==================
-        if (! $isDry && ! $isReport) {
+        if (! $isDry && ! $isReport && ! $isCapturing) {
             $destructiveRules = $this->collectDestructiveRules(
                 $this->config->getSets(),
                 $this->config->getRules(),
@@ -277,12 +302,20 @@ class DatabaseAnalyzerCommand extends Command
 
                 // Pass your map straight through; the set will pick constraints by Rule FQCN.
                 $setContext = [
-                    'dry' => $this->config->getContext()->isDry(),
+                    'dry' => $isCapturing ? true : $this->config->getContext()->isDry(),
                 ];
 
                 try {
                     $logs = $set->execute($pdo, $io, $setContext);
                     $issueCount = count($logs);
+
+                    if ($isCapturing) {
+                        foreach ($logs as $log) {
+                            if ($this->isSqlStatement($log->getTo())) {
+                                $allCapturedSql[] = rtrim(trim($log->getTo()), ';');
+                            }
+                        }
+                    }
 
                     // Group logs by rule name for report mode
                     $countByRuleName = [];
@@ -349,6 +382,9 @@ class DatabaseAnalyzerCommand extends Command
                 }
                 $io->success('Report: No findings detected.');
                 return Command::SUCCESS;
+            }
+            if ($isCapturing) {
+                return $this->writeCapturingOutput($capturingPdo, $allCapturedSql, $isSqlDump, $isMigration, $sqlDumpOption, $migrationOption, $io);
             }
             if ($sets === []) {
                 $io->warning("No rules or sets registered.");
@@ -429,16 +465,15 @@ class DatabaseAnalyzerCommand extends Command
             $io->section($title);
             $this->logMessage($logHandle, $title);
 
-            // Build context: constraint → array OR inline array. CLI --dry always wins.
+            // Build context: constraint → array OR inline array. Dry flag always wins.
             $ruleContext = [];
             if ($constraintsObj instanceof RuleConstraintInterface) {
-                // Your interface exposes toContext(); if it’s named differently, call that instead.
                 $ruleContext = $constraintsObj->toContext();
             } elseif ($inlineContext !== []) {
                 $ruleContext = $inlineContext;
             }
             $context = $ruleContext;
-            $context['dry'] = $isDry; // force CLI flag
+            $context[‘dry’] = $isCapturing ? true : $isDry;
 
             if (! $isDry && $rule instanceof BreaksExpandContractPatternInterface) {
                 $io->warning(sprintf(
@@ -447,7 +482,7 @@ class DatabaseAnalyzerCommand extends Command
                 ));
             }
 
-            $useTransaction = ! $ruleClass::isDestructive() && ! $isDry;
+            $useTransaction = ! $ruleClass::isDestructive() && ! $isDry && ! $isCapturing;
 
             try {
                 if ($useTransaction) {
@@ -456,6 +491,14 @@ class DatabaseAnalyzerCommand extends Command
 
                 $logs = $rule->apply($pdo, $io, $context);
                 $issueCount = count($logs);
+
+                if ($isCapturing) {
+                    foreach ($logs as $log) {
+                        if ($this->isSqlStatement($log->getTo())) {
+                            $allCapturedSql[] = rtrim(trim($log->getTo()), ';');
+                        }
+                    }
+                }
 
                 $reportRows[] = [
                     'name' => $ruleClass::getName(),
@@ -528,6 +571,10 @@ class DatabaseAnalyzerCommand extends Command
             }
             $io->success('Report: No findings detected.');
             return Command::SUCCESS;
+        }
+
+        if ($isCapturing) {
+            return $this->writeCapturingOutput($capturingPdo, $allCapturedSql, $isSqlDump, $isMigration, $sqlDumpOption, $migrationOption, $io);
         }
 
         $io->success("All rules executed.");
@@ -794,6 +841,109 @@ class DatabaseAnalyzerCommand extends Command
             $user,
             $pass
         );
+    }
+
+    /**
+     * @param list<string> $allCapturedSql
+     * @param mixed $sqlDumpOption
+     * @param mixed $migrationOption
+     */
+    private function writeCapturingOutput(?CapturingPdo $capturingPdo, array $allCapturedSql, bool $isSqlDump, bool $isMigration, $sqlDumpOption, $migrationOption, SymfonyStyle $io): int
+    {
+        $fromPdo = $capturingPdo ? $capturingPdo->getCapturedSql() : [];
+        $allSql = array_values(array_unique(array_merge($fromPdo, $allCapturedSql)));
+
+        if ($isSqlDump) {
+            $dumpPath = is_string($sqlDumpOption) && $sqlDumpOption !== ''
+                ? $sqlDumpOption
+                : getcwd() . '/indoctrinate-' . date('Y-m-d_H-i-s') . '.sql';
+            $this->writeSqlDump($allSql, $dumpPath, $io);
+        }
+
+        if ($isMigration) {
+            $migrationDir = is_string($migrationOption) && $migrationOption !== ''
+                ? $migrationOption
+                : getcwd() . '/migrations';
+            $this->writeMigrationClass($allSql, $migrationDir, $io);
+        }
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * @param list<string> $sql
+     */
+    private function writeSqlDump(array $sql, string $path, SymfonyStyle $io): void
+    {
+        $lines = [];
+        $lines[] = '-- Generated by Indoctrinate on ' . date('Y-m-d H:i:s');
+        $lines[] = '';
+
+        foreach ($sql as $statement) {
+            $lines[] = $statement . ';';
+        }
+
+        $lines[] = '';
+        file_put_contents($path, implode("\n", $lines));
+        $io->success("SQL dump written to: {$path}");
+    }
+
+    /**
+     * @param list<string> $sql
+     */
+    private function writeMigrationClass(array $sql, string $dir, SymfonyStyle $io): void
+    {
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $version = 'Version' . date('YmdHis');
+        $filename = rtrim($dir, '/') . '/' . $version . '.php';
+
+        $sqlLines = [];
+        foreach ($sql as $statement) {
+            $escaped = str_replace("'", "\\'", $statement);
+            $sqlLines[] = "        \$this->addSql('{$escaped}');";
+        }
+
+        $upBody = $sqlLines !== [] ? implode("\n", $sqlLines) : '        // No SQL captured.';
+
+        $content = '<?php' . "\n\n"
+            . 'declare(strict_types=1);' . "\n\n"
+            . 'namespace DoctrineMigrations;' . "\n\n"
+            . 'use Doctrine\DBAL\Schema\Schema;' . "\n"
+            . 'use Doctrine\DBAL\Migrations\AbstractMigration;' . "\n\n"
+            . 'final class ' . $version . ' extends AbstractMigration' . "\n"
+            . '{' . "\n"
+            . '    public function getDescription(): string' . "\n"
+            . '    {' . "\n"
+            . "        return 'Generated by Indoctrinate';\n"
+            . '    }' . "\n\n"
+            . '    public function up(Schema $schema): void' . "\n"
+            . '    {' . "\n"
+            . $upBody . "\n"
+            . '    }' . "\n\n"
+            . '    public function down(Schema $schema): void' . "\n"
+            . '    {' . "\n"
+            . '        // No automatic down migration — restore from a backup if needed.' . "\n"
+            . '    }' . "\n"
+            . '}' . "\n";
+
+        file_put_contents($filename, $content);
+        $io->success("Doctrine migration written to: {$filename}");
+    }
+
+    private function isSqlStatement(string $s): bool
+    {
+        $upper = ltrim(strtoupper(trim($s)));
+
+        foreach (['ALTER ', 'CREATE ', 'DROP ', 'RENAME ', 'INSERT ', 'UPDATE ', 'DELETE ', 'TRUNCATE '] as $kw) {
+            if (strpos($upper, $kw) === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function credentialsFromDsn(string $dsn): ConnectionCredentials

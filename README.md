@@ -68,11 +68,11 @@ php bin/indoctrinate docs
 ```
 
 ## Usage
-`php bin/indoctrinate fix`
+`php bin/indoctrinate analyze`           — dry-run analysis (default, no changes applied)
 
-`php bin/indoctrinate fix --dry`
+`php bin/indoctrinate analyze --fix`     — apply all fixes
 
-`php bin/indoctrinate fix --report`
+`php bin/indoctrinate analyze --report`  — summary table of findings, exits non-zero if any found
 
 ### Options
 ` --log=<log-dir>`
