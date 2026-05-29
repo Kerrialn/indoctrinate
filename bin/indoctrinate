@@ -3,6 +3,9 @@
 
 use Indoctrinate\Command\DatabaseAnalyzerCommand;
 use Indoctrinate\Command\GenerateDocsCommand;
+use Indoctrinate\Command\GenerateEntitiesCommand;
+use Indoctrinate\Service\EntityBuilderService;
+use Indoctrinate\Service\SchemaDiscoveryService;
 use Symfony\Component\Console\Application;
 
 $autoloadPaths = [
@@ -27,4 +30,5 @@ if (!class_exists(DatabaseAnalyzerCommand::class)) {
 $application = new Application();
 $application->add(new DatabaseAnalyzerCommand());
 $application->add(new GenerateDocsCommand());
+$application->add(new GenerateEntitiesCommand(new SchemaDiscoveryService(), new EntityBuilderService()));
 $application->run();
