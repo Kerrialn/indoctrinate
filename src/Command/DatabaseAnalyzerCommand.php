@@ -138,7 +138,9 @@ class DatabaseAnalyzerCommand extends Command
         $allCapturedSql = [];
 
         try {
-            $pdoOptions = [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION];
+            $pdoOptions = [
+                \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+            ];
 
             if ($isCapturing) {
                 $capturingPdo = new CapturingPdo(
@@ -473,7 +475,7 @@ class DatabaseAnalyzerCommand extends Command
                 $ruleContext = $inlineContext;
             }
             $context = $ruleContext;
-            $context[‘dry’] = $isCapturing ? true : $isDry;
+            $context['dry'] = $isCapturing ? true : $isDry;
 
             if (! $isDry && $rule instanceof BreaksExpandContractPatternInterface) {
                 $io->warning(sprintf(

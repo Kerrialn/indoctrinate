@@ -11,7 +11,9 @@ namespace Indoctrinate\Pdo;
  */
 final class CapturingPdo extends \PDO
 {
-    /** @var list<string> */
+    /**
+     * @var list<string>
+     */
     private array $captured = [];
 
     /**
@@ -41,7 +43,9 @@ final class CapturingPdo extends \PDO
         return false;
     }
 
-    /** @return list<string> */
+    /**
+     * @return list<string>
+     */
     public function getCapturedSql(): array
     {
         return $this->captured;
