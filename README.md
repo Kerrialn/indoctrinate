@@ -10,69 +10,59 @@ Built for teams migrating legacy databases to [Doctrine ORM](https://www.doctrin
 
 ## Configuration
 
-create `config/indoctrinate.php` in the root directory of your project.
+Create `indoctrinate.php` in the root of your project:
 
 ```php
 <?php
 
-return static function (DbFixerConfig $config): void {
+use Indoctrinate\Config\IndoctrinateConfig;
+
+return static function (IndoctrinateConfig $config): void {
     $config->connection(
         driver: 'mysql',
         host: '127.0.0.1',
         port: 3306,
-        dbname: 'IM_A_DATABASE_NAME,
-        user: 'happy_user',
-        password: '12345678',
+        dbname: 'your_database',
+        user: 'your_user',
+        password: 'your_password',
     );
 
+    // Register individual rules, optionally with a constraint to configure them:
     $config->rules([
         EnsureAutoIncrementPrimaryKeyRule::class => new EnsureAutoIncrementPrimaryKeyRuleConstraints(
-            false,
-            false,
-            [],
-            ['default_ci_sessions', '%session%', '%cache%', '%temp%', '%tmp%'],
-            500000,
-            true,
-            false
+            skipTableLike: ['%session%', '%cache%', '%temp%', '%tmp%'],
         ),
     ]);
+
+    // Or register a curated set of rules:
+    // $config->sets([DoctrineCompatibilitySet::class]);
 };
 ```
 
-If you want to register indiviual rule constraints, you can do so like this:
-
-```php
-$config->rules([
-        EnsureAutoIncrementPrimaryKeyRule::class => new EnsureAutoIncrementPrimaryKeyRuleConstraints(
-            false,
-            false,
-            [],
-            ['default_ci_sessions', '%session%', '%cache%', '%temp%', '%tmp%'],
-            500000,
-            true,
-            false
-        ),
-    ]);
-```
-    
-
-
 ## Available Rules & Sets
 
-See **[RULES.md](RULES.md)** for the full list of available rules and sets.
-
-To regenerate it after adding new rules:
-
-```
-php bin/indoctrinate docs
-```
+See **[RULES.md](RULES.md)** for the full list of rules and sets, with per-rule constraint argument references.
 
 ## Usage
-`php bin/indoctrinate analyze`           — dry-run analysis (default, no changes applied)
 
-`php bin/indoctrinate analyze --fix`     — apply all fixes
-
-`php bin/indoctrinate analyze --report`  — summary table of findings, exits non-zero if any found
+```
+php bin/indoctrinate analyze                    # dry-run analysis — no changes applied (default)
+php bin/indoctrinate analyze --fix              # apply all fixes
+php bin/indoctrinate analyze --report           # summary table, exits non-zero if findings found
+php bin/indoctrinate analyze --sql-dump         # capture planned SQL to a .sql file
+php bin/indoctrinate analyze --sql-dump=out.sql
+php bin/indoctrinate analyze --migration        # generate a Doctrine migration class
+php bin/indoctrinate analyze --migration=migrations/
+```
 
 ### Options
-` --log=<log-dir>`
+
+| Option | Description |
+|--------|-------------|
+| `--fix` | Apply fixes (default is dry-run) |
+| `--report` | Print a findings summary table; exits non-zero if any found |
+| `--sql-dump[=file]` | Write planned SQL to a file (default: `indoctrinate-<timestamp>.sql`) |
+| `--migration[=dir]` | Write a Doctrine migration class (default dir: `migrations/`) |
+| `--log=<dir>` | Write a timestamped log file to the given directory |
+| `--prod` | Prod mode — override connection from `indoctrinate.php` via `--dsn` or `--db-*` flags |
+| `--dsn=<dsn>` | Connection DSN, e.g. `mysql://user:pass@host:3306/db` |
