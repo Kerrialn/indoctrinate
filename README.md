@@ -57,6 +57,8 @@ php bin/indoctrinate analyze --sql-dump         # capture planned SQL to a .sql 
 php bin/indoctrinate analyze --sql-dump=out.sql
 php bin/indoctrinate analyze --migration        # generate a Doctrine migration class
 php bin/indoctrinate analyze --migration=migrations/
+php bin/indoctrinate analyze --impact           # scan src/ for code that will break
+php bin/indoctrinate analyze --impact=app/src   # scan a custom directory
 ```
 
 | Option | Description |
@@ -65,6 +67,7 @@ php bin/indoctrinate analyze --migration=migrations/
 | `--report` | Print a findings summary table; exits non-zero if any found |
 | `--sql-dump[=file]` | Write planned SQL to a file (default: `indoctrinate-<timestamp>.sql`) |
 | `--migration[=dir]` | Write a Doctrine migration class (default dir: `migrations/`) |
+| `--impact[=dir]` | Scan PHP source for code references that will break (default: `src/`). Reports column renames, drops, and type changes by severity, with file path and line number. |
 | `--log=<dir>` | Write a timestamped log file to the given directory |
 | `--prod` | Prod mode — override connection from `indoctrinate.php` via `--dsn` or `--db-*` flags |
 | `--dsn=<dsn>` | Connection DSN, e.g. `mysql://user:pass@host:3306/db` |
