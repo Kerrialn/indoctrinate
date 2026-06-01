@@ -17,6 +17,10 @@ use Indoctrinate\Set\MySQL\EnsurePrimaryKeyUuidSet;
 
 return static function (IndoctrinateConfig $config): void {
 
+    // Optional: set the project root directory used as the base for --impact, --sql-dump,
+    // and --migration output paths. Defaults to the current working directory.
+    // $config->projectRootDir(__DIR__); // or an absolute path
+
     $config->connection(
         'mysql',
         '127.0.0.1',

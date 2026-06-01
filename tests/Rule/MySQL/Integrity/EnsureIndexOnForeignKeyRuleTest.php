@@ -24,7 +24,13 @@ final class EnsureIndexOnForeignKeyRuleTest extends TestCase
     public function testFlagsUnindexedForeignKeyColumn(): void
     {
         $pdo = $this->pdoWithRows([
-            ['TABLE_NAME' => 'orders', 'COLUMN_NAME' => 'user_id', 'CONSTRAINT_NAME' => 'fk_orders_user', 'REFERENCED_TABLE_NAME' => 'users', 'REFERENCED_COLUMN_NAME' => 'id'],
+            [
+                'TABLE_NAME' => 'orders',
+                'COLUMN_NAME' => 'user_id',
+                'CONSTRAINT_NAME' => 'fk_orders_user',
+                'REFERENCED_TABLE_NAME' => 'users',
+                'REFERENCED_COLUMN_NAME' => 'id',
+            ],
         ]);
 
         $logs = (new EnsureIndexOnForeignKeyRule())->apply($pdo, new NullOutput());
@@ -41,8 +47,20 @@ final class EnsureIndexOnForeignKeyRuleTest extends TestCase
     public function testFlagsMultipleUnindexedColumns(): void
     {
         $pdo = $this->pdoWithRows([
-            ['TABLE_NAME' => 'orders', 'COLUMN_NAME' => 'user_id', 'CONSTRAINT_NAME' => 'fk1', 'REFERENCED_TABLE_NAME' => 'users', 'REFERENCED_COLUMN_NAME' => 'id'],
-            ['TABLE_NAME' => 'orders', 'COLUMN_NAME' => 'product_id', 'CONSTRAINT_NAME' => 'fk2', 'REFERENCED_TABLE_NAME' => 'products', 'REFERENCED_COLUMN_NAME' => 'id'],
+            [
+                'TABLE_NAME' => 'orders',
+                'COLUMN_NAME' => 'user_id',
+                'CONSTRAINT_NAME' => 'fk1',
+                'REFERENCED_TABLE_NAME' => 'users',
+                'REFERENCED_COLUMN_NAME' => 'id',
+            ],
+            [
+                'TABLE_NAME' => 'orders',
+                'COLUMN_NAME' => 'product_id',
+                'CONSTRAINT_NAME' => 'fk2',
+                'REFERENCED_TABLE_NAME' => 'products',
+                'REFERENCED_COLUMN_NAME' => 'id',
+            ],
         ]);
 
         $logs = (new EnsureIndexOnForeignKeyRule())->apply($pdo, new NullOutput());
@@ -55,7 +73,13 @@ final class EnsureIndexOnForeignKeyRuleTest extends TestCase
     public function testSkipsTableMatchingSkipTableLike(): void
     {
         $pdo = $this->pdoWithRows([
-            ['TABLE_NAME' => 'cache_entries', 'COLUMN_NAME' => 'user_id', 'CONSTRAINT_NAME' => 'fk1', 'REFERENCED_TABLE_NAME' => 'users', 'REFERENCED_COLUMN_NAME' => 'id'],
+            [
+                'TABLE_NAME' => 'cache_entries',
+                'COLUMN_NAME' => 'user_id',
+                'CONSTRAINT_NAME' => 'fk1',
+                'REFERENCED_TABLE_NAME' => 'users',
+                'REFERENCED_COLUMN_NAME' => 'id',
+            ],
         ]);
 
         // default skip_table_like includes %cache%
@@ -67,7 +91,13 @@ final class EnsureIndexOnForeignKeyRuleTest extends TestCase
     public function testSkipsExactTableInSkipTables(): void
     {
         $pdo = $this->pdoWithRows([
-            ['TABLE_NAME' => 'legacy_orders', 'COLUMN_NAME' => 'user_id', 'CONSTRAINT_NAME' => 'fk1', 'REFERENCED_TABLE_NAME' => 'users', 'REFERENCED_COLUMN_NAME' => 'id'],
+            [
+                'TABLE_NAME' => 'legacy_orders',
+                'COLUMN_NAME' => 'user_id',
+                'CONSTRAINT_NAME' => 'fk1',
+                'REFERENCED_TABLE_NAME' => 'users',
+                'REFERENCED_COLUMN_NAME' => 'id',
+            ],
         ]);
 
         $logs = (new EnsureIndexOnForeignKeyRule())->apply($pdo, new NullOutput(), [
@@ -80,8 +110,20 @@ final class EnsureIndexOnForeignKeyRuleTest extends TestCase
     public function testOnlyTablesFilterIsRespected(): void
     {
         $pdo = $this->pdoWithRows([
-            ['TABLE_NAME' => 'orders', 'COLUMN_NAME' => 'user_id', 'CONSTRAINT_NAME' => 'fk1', 'REFERENCED_TABLE_NAME' => 'users', 'REFERENCED_COLUMN_NAME' => 'id'],
-            ['TABLE_NAME' => 'comments', 'COLUMN_NAME' => 'post_id', 'CONSTRAINT_NAME' => 'fk2', 'REFERENCED_TABLE_NAME' => 'posts', 'REFERENCED_COLUMN_NAME' => 'id'],
+            [
+                'TABLE_NAME' => 'orders',
+                'COLUMN_NAME' => 'user_id',
+                'CONSTRAINT_NAME' => 'fk1',
+                'REFERENCED_TABLE_NAME' => 'users',
+                'REFERENCED_COLUMN_NAME' => 'id',
+            ],
+            [
+                'TABLE_NAME' => 'comments',
+                'COLUMN_NAME' => 'post_id',
+                'CONSTRAINT_NAME' => 'fk2',
+                'REFERENCED_TABLE_NAME' => 'posts',
+                'REFERENCED_COLUMN_NAME' => 'id',
+            ],
         ]);
 
         $logs = (new EnsureIndexOnForeignKeyRule())->apply($pdo, new NullOutput(), [
@@ -98,7 +140,13 @@ final class EnsureIndexOnForeignKeyRuleTest extends TestCase
         $longColumn = 'very_long_column_name_that_exceeds_mysql_limit';
 
         $pdo = $this->pdoWithRows([
-            ['TABLE_NAME' => $longTable, 'COLUMN_NAME' => $longColumn, 'CONSTRAINT_NAME' => 'fk1', 'REFERENCED_TABLE_NAME' => 'parent', 'REFERENCED_COLUMN_NAME' => 'id'],
+            [
+                'TABLE_NAME' => $longTable,
+                'COLUMN_NAME' => $longColumn,
+                'CONSTRAINT_NAME' => 'fk1',
+                'REFERENCED_TABLE_NAME' => 'parent',
+                'REFERENCED_COLUMN_NAME' => 'id',
+            ],
         ]);
 
         $logs = (new EnsureIndexOnForeignKeyRule())->apply($pdo, new NullOutput());
@@ -110,7 +158,9 @@ final class EnsureIndexOnForeignKeyRuleTest extends TestCase
         $this->assertLessThanOrEqual(64, \strlen($m[1]));
     }
 
-    /** @param array<int, array<string, string>> $rows */
+    /**
+     * @param array<int, array<string, string>> $rows
+     */
     private function pdoWithRows(array $rows): PDO
     {
         $stmt = $this->createMock(PDOStatement::class);

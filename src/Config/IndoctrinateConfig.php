@@ -16,6 +16,8 @@ final class IndoctrinateConfig
 
     private ?ConnectionCredentials $credentials = null;
 
+    private ?string $projectRootDir = null;
+
     private int $destructiveThreshold = 10;
 
     /**
@@ -179,6 +181,19 @@ final class IndoctrinateConfig
     public function getContext(): ?Context
     {
         return $this->context;
+    }
+
+    public function setProjectRootDir(?string $dir): self
+    {
+        $this->projectRootDir = $dir !== null ? rtrim($dir, '/\\') : null;
+        return $this;
+    }
+
+    public function getProjectRootDir(): string
+    {
+        $raw = $this->projectRootDir ?? (string) getcwd();
+        $resolved = realpath($raw);
+        return $resolved !== false ? $resolved : $raw;
     }
 
     public function destructiveThreshold(int $n): self

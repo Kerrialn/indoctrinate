@@ -24,7 +24,16 @@ final class NormalizeIntColumnsRuleTest extends TestCase
     public function testFlagsIntWithDisplayWidth(): void
     {
         $pdo = $this->buildPdo(
-            [['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'age', 'COLUMN_TYPE' => 'int(11)', 'DATA_TYPE' => 'int', 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => null, 'COLUMN_KEY' => '', 'EXTRA' => '']],
+            [[
+                'TABLE_NAME' => 'users',
+                'COLUMN_NAME' => 'age',
+                'COLUMN_TYPE' => 'int(11)',
+                'DATA_TYPE' => 'int',
+                'IS_NULLABLE' => 'NO',
+                'COLUMN_DEFAULT' => null,
+                'COLUMN_KEY' => '',
+                'EXTRA' => '',
+            ]],
             []
         );
 
@@ -39,7 +48,16 @@ final class NormalizeIntColumnsRuleTest extends TestCase
     public function testFlagsZerofillInt(): void
     {
         $pdo = $this->buildPdo(
-            [['TABLE_NAME' => 'stats', 'COLUMN_NAME' => 'score', 'COLUMN_TYPE' => 'int(10) unsigned zerofill', 'DATA_TYPE' => 'int', 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => null, 'COLUMN_KEY' => '', 'EXTRA' => '']],
+            [[
+                'TABLE_NAME' => 'stats',
+                'COLUMN_NAME' => 'score',
+                'COLUMN_TYPE' => 'int(10) unsigned zerofill',
+                'DATA_TYPE' => 'int',
+                'IS_NULLABLE' => 'NO',
+                'COLUMN_DEFAULT' => null,
+                'COLUMN_KEY' => '',
+                'EXTRA' => '',
+            ]],
             []
         );
 
@@ -53,7 +71,16 @@ final class NormalizeIntColumnsRuleTest extends TestCase
     public function testSuggestsTinyintForInt1(): void
     {
         $pdo = $this->buildPdo(
-            [['TABLE_NAME' => 'products', 'COLUMN_NAME' => 'active', 'COLUMN_TYPE' => 'int(1)', 'DATA_TYPE' => 'int', 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => '0', 'COLUMN_KEY' => '', 'EXTRA' => '']],
+            [[
+                'TABLE_NAME' => 'products',
+                'COLUMN_NAME' => 'active',
+                'COLUMN_TYPE' => 'int(1)',
+                'DATA_TYPE' => 'int',
+                'IS_NULLABLE' => 'NO',
+                'COLUMN_DEFAULT' => '0',
+                'COLUMN_KEY' => '',
+                'EXTRA' => '',
+            ]],
             []
         );
 
@@ -67,7 +94,16 @@ final class NormalizeIntColumnsRuleTest extends TestCase
     public function testCleanIntProducesNoLog(): void
     {
         $pdo = $this->buildPdo(
-            [['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'count', 'COLUMN_TYPE' => 'int', 'DATA_TYPE' => 'int', 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => null, 'COLUMN_KEY' => '', 'EXTRA' => '']],
+            [[
+                'TABLE_NAME' => 'users',
+                'COLUMN_NAME' => 'count',
+                'COLUMN_TYPE' => 'int',
+                'DATA_TYPE' => 'int',
+                'IS_NULLABLE' => 'NO',
+                'COLUMN_DEFAULT' => null,
+                'COLUMN_KEY' => '',
+                'EXTRA' => '',
+            ]],
             []
         );
 

@@ -28,7 +28,12 @@ final class EnsurePrimaryKeyUuidRuleTest extends TestCase
             ['users'],
             [],
             ['id'],
-            ['COLUMN_NAME' => 'id', 'COLUMN_TYPE' => 'char(36)', 'IS_NULLABLE' => 'NO', 'EXTRA' => '']
+            [
+                'COLUMN_NAME' => 'id',
+                'COLUMN_TYPE' => 'char(36)',
+                'IS_NULLABLE' => 'NO',
+                'EXTRA' => '',
+            ]
         );
 
         $logs = (new EnsurePrimaryKeyUuidRule())->apply($pdo, new NullOutput());
@@ -46,10 +51,17 @@ final class EnsurePrimaryKeyUuidRuleTest extends TestCase
             ['users'],
             [],
             ['id'],
-            ['COLUMN_NAME' => 'id', 'COLUMN_TYPE' => 'char(36)', 'IS_NULLABLE' => 'YES', 'EXTRA' => '']
+            [
+                'COLUMN_NAME' => 'id',
+                'COLUMN_TYPE' => 'char(36)',
+                'IS_NULLABLE' => 'YES',
+                'EXTRA' => '',
+            ]
         );
 
-        $logs = (new EnsurePrimaryKeyUuidRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new EnsurePrimaryKeyUuidRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertCount(1, $logs);
         $this->assertStringContainsString('DRY', $logs[0]->getTo());
@@ -64,7 +76,9 @@ final class EnsurePrimaryKeyUuidRuleTest extends TestCase
             [] // no PK
         );
 
-        $logs = (new EnsurePrimaryKeyUuidRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new EnsurePrimaryKeyUuidRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertCount(1, $logs);
         $this->assertSame('logs', $logs[0]->getTable());
@@ -79,10 +93,17 @@ final class EnsurePrimaryKeyUuidRuleTest extends TestCase
             ['users'],
             [],
             ['user_id'],
-            ['COLUMN_NAME' => 'user_id', 'COLUMN_TYPE' => 'int unsigned', 'IS_NULLABLE' => 'NO', 'EXTRA' => '']
+            [
+                'COLUMN_NAME' => 'user_id',
+                'COLUMN_TYPE' => 'int unsigned',
+                'IS_NULLABLE' => 'NO',
+                'EXTRA' => '',
+            ]
         );
 
-        $logs = (new EnsurePrimaryKeyUuidRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new EnsurePrimaryKeyUuidRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertNotEmpty($logs);
         $this->assertSame('users', $logs[0]->getTable());
@@ -110,14 +131,19 @@ final class EnsurePrimaryKeyUuidRuleTest extends TestCase
 
         $fkCountRows = [];
         foreach ($childFks as $parent => $count) {
-            $fkCountRows[] = ['parent_table' => $parent, 'c' => (string) $count];
+            $fkCountRows[] = [
+                'parent_table' => $parent,
+                'c' => (string) $count,
+            ];
         }
         $fkCountStmt = $this->createMock(PDOStatement::class);
         $fkCountStmt->method('fetchAll')->willReturn($fkCountRows);
 
         $pkStmt = $this->createMock(PDOStatement::class);
         $pkStmt->method('execute')->willReturn(true);
-        $pkStmt->method('fetchAll')->willReturn(array_map(fn($c) => ['COLUMN_NAME' => $c], $pkCols));
+        $pkStmt->method('fetchAll')->willReturn(array_map(fn($c) => [
+            'COLUMN_NAME' => $c,
+        ], $pkCols));
 
         $colStmt = $this->createMock(PDOStatement::class);
         $colStmt->method('execute')->willReturn(true);

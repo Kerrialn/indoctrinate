@@ -65,7 +65,9 @@ final class DoctrineCompatibilitySetTest extends TestCase
         $pdo = $this->buildNullPdo();
 
         $set = new DoctrineCompatibilitySet();
-        $logs = $set->execute($pdo, new NullOutput(), ['dry' => false]);
+        $logs = $set->execute($pdo, new NullOutput(), [
+            'dry' => false,
+        ]);
 
         $this->assertGreaterThanOrEqual(0, count($logs));
     }

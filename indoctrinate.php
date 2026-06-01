@@ -16,7 +16,7 @@ use Indoctrinate\Set\MySQL\EnsureDateTimeSet;
 use Indoctrinate\Set\MySQL\EnsurePrimaryKeyUuidSet;
 
 return static function (IndoctrinateConfig $config): void {
-
+    $config->setProjectRootDir(__DIR__.'/../../../../kerrialnewham/projects/network-site');
     $config->connection(
         'mysql',
         '127.0.0.1',

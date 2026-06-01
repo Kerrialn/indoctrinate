@@ -16,7 +16,9 @@ final class NormalizeTemporalValuesRuleTest extends TestCase
     {
         $pdo = $this->pdoWithColumns([]);
 
-        $logs = (new NormalizeTemporalValuesRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new NormalizeTemporalValuesRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertCount(0, $logs);
     }
@@ -24,11 +26,21 @@ final class NormalizeTemporalValuesRuleTest extends TestCase
     public function testDryModeEmitsLogsForZeroDateColumn(): void
     {
         $pdo = $this->pdoWithColumns([
-            ['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'created_at', 'DATA_TYPE' => 'datetime', 'COLUMN_TYPE' => 'datetime', 'IS_NULLABLE' => 'YES', 'COLUMN_DEFAULT' => null, 'EXTRA' => ''],
+            [
+                'TABLE_NAME' => 'users',
+                'COLUMN_NAME' => 'created_at',
+                'DATA_TYPE' => 'datetime',
+                'COLUMN_TYPE' => 'datetime',
+                'IS_NULLABLE' => 'YES',
+                'COLUMN_DEFAULT' => null,
+                'EXTRA' => '',
+            ],
         ]);
 
         // dry=true → would-do logs, no exec()
-        $logs = (new NormalizeTemporalValuesRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new NormalizeTemporalValuesRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         // Expects logs for: empty-string→NULL, zero-dates (two zero patterns), microseconds
         $this->assertNotEmpty($logs);
@@ -42,24 +54,44 @@ final class NormalizeTemporalValuesRuleTest extends TestCase
     {
         $stmt = $this->createMock(\PDOStatement::class);
         $stmt->method('fetchAll')->willReturn([
-            ['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'created_at', 'DATA_TYPE' => 'datetime', 'COLUMN_TYPE' => 'datetime', 'IS_NULLABLE' => 'YES', 'COLUMN_DEFAULT' => null, 'EXTRA' => ''],
+            [
+                'TABLE_NAME' => 'users',
+                'COLUMN_NAME' => 'created_at',
+                'DATA_TYPE' => 'datetime',
+                'COLUMN_TYPE' => 'datetime',
+                'IS_NULLABLE' => 'YES',
+                'COLUMN_DEFAULT' => null,
+                'EXTRA' => '',
+            ],
         ]);
 
         $pdo = $this->createMock(\PDO::class);
         $pdo->method('query')->willReturn($stmt);
         $pdo->expects($this->never())->method('exec');
 
-        (new NormalizeTemporalValuesRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        (new NormalizeTemporalValuesRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
     }
 
     public function testSkipsTableMatchingSkipTableLike(): void
     {
         $pdo = $this->pdoWithColumns([
-            ['TABLE_NAME' => 'temp_data', 'COLUMN_NAME' => 'created_at', 'DATA_TYPE' => 'datetime', 'COLUMN_TYPE' => 'datetime', 'IS_NULLABLE' => 'YES', 'COLUMN_DEFAULT' => null, 'EXTRA' => ''],
+            [
+                'TABLE_NAME' => 'temp_data',
+                'COLUMN_NAME' => 'created_at',
+                'DATA_TYPE' => 'datetime',
+                'COLUMN_TYPE' => 'datetime',
+                'IS_NULLABLE' => 'YES',
+                'COLUMN_DEFAULT' => null,
+                'EXTRA' => '',
+            ],
         ]);
 
         // default skip_table_like includes %temp%
-        $logs = (new NormalizeTemporalValuesRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new NormalizeTemporalValuesRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertCount(0, $logs);
     }
@@ -68,10 +100,20 @@ final class NormalizeTemporalValuesRuleTest extends TestCase
     {
         $pdo = $this->pdoWithColumns([
             // NOT NULL datetime: only zero-date and microsecond fixes apply, not empty-string→NULL
-            ['TABLE_NAME' => 'events', 'COLUMN_NAME' => 'starts_at', 'DATA_TYPE' => 'datetime', 'COLUMN_TYPE' => 'datetime', 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => null, 'EXTRA' => ''],
+            [
+                'TABLE_NAME' => 'events',
+                'COLUMN_NAME' => 'starts_at',
+                'DATA_TYPE' => 'datetime',
+                'COLUMN_TYPE' => 'datetime',
+                'IS_NULLABLE' => 'NO',
+                'COLUMN_DEFAULT' => null,
+                'EXTRA' => '',
+            ],
         ]);
 
-        $logs = (new NormalizeTemporalValuesRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new NormalizeTemporalValuesRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         foreach ($logs as $log) {
             $this->assertStringNotContainsString('empty-string → NULL', $log->getTo());
@@ -81,10 +123,20 @@ final class NormalizeTemporalValuesRuleTest extends TestCase
     public function testDateTypeColumnProducesCorrectPatterns(): void
     {
         $pdo = $this->pdoWithColumns([
-            ['TABLE_NAME' => 'events', 'COLUMN_NAME' => 'event_date', 'DATA_TYPE' => 'date', 'COLUMN_TYPE' => 'date', 'IS_NULLABLE' => 'YES', 'COLUMN_DEFAULT' => null, 'EXTRA' => ''],
+            [
+                'TABLE_NAME' => 'events',
+                'COLUMN_NAME' => 'event_date',
+                'DATA_TYPE' => 'date',
+                'COLUMN_TYPE' => 'date',
+                'IS_NULLABLE' => 'YES',
+                'COLUMN_DEFAULT' => null,
+                'EXTRA' => '',
+            ],
         ]);
 
-        $logs = (new NormalizeTemporalValuesRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new NormalizeTemporalValuesRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         // DATE type should not produce a microsecond-strip log
         $targets = array_map(fn($l) => $l->getTo(), $logs);

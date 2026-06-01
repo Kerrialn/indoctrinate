@@ -4,7 +4,10 @@
 use Indoctrinate\Command\DatabaseAnalyzerCommand;
 use Indoctrinate\Command\GenerateDocsCommand;
 use Indoctrinate\Command\GenerateEntitiesCommand;
+use Indoctrinate\Service\ArtifactWriter;
+use Indoctrinate\Service\DestructiveRuleDetector;
 use Indoctrinate\Service\EntityBuilderService;
+use Indoctrinate\Service\RuleRunner;
 use Indoctrinate\Service\SchemaDiscoveryService;
 use Symfony\Component\Console\Application;
 
@@ -28,7 +31,7 @@ if (!class_exists(DatabaseAnalyzerCommand::class)) {
 }
 
 $application = new Application();
-$application->add(new DatabaseAnalyzerCommand());
+$application->add(new DatabaseAnalyzerCommand(new RuleRunner(), new DestructiveRuleDetector(), new ArtifactWriter()));
 $application->add(new GenerateDocsCommand());
 $application->add(new GenerateEntitiesCommand(new SchemaDiscoveryService(), new EntityBuilderService()));
 $application->run();

@@ -52,7 +52,11 @@ final class NormalizeTinyint4ColumnsRuleTest extends TestCase
     public function testFlagsTinyint4(): void
     {
         $logs = (new NormalizeTinyint4ColumnsRule())->apply(
-            $this->buildPdo([['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'status', 'COLUMN_TYPE' => 'tinyint(4)']]),
+            $this->buildPdo([[
+                'TABLE_NAME' => 'users',
+                'COLUMN_NAME' => 'status',
+                'COLUMN_TYPE' => 'tinyint(4)',
+            ]]),
             new NullOutput()
         );
 
@@ -67,7 +71,11 @@ final class NormalizeTinyint4ColumnsRuleTest extends TestCase
     public function testFlagsTinyint4Unsigned(): void
     {
         $logs = (new NormalizeTinyint4ColumnsRule())->apply(
-            $this->buildPdo([['TABLE_NAME' => 'products', 'COLUMN_NAME' => 'qty', 'COLUMN_TYPE' => 'tinyint(4) unsigned']]),
+            $this->buildPdo([[
+                'TABLE_NAME' => 'products',
+                'COLUMN_NAME' => 'qty',
+                'COLUMN_TYPE' => 'tinyint(4) unsigned',
+            ]]),
             new NullOutput()
         );
 
@@ -79,7 +87,11 @@ final class NormalizeTinyint4ColumnsRuleTest extends TestCase
     {
         // tinyint(1) is Doctrine's boolean — must not be touched
         $logs = (new NormalizeTinyint4ColumnsRule())->apply(
-            $this->buildPdo([['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'active', 'COLUMN_TYPE' => 'tinyint(1)']]),
+            $this->buildPdo([[
+                'TABLE_NAME' => 'users',
+                'COLUMN_NAME' => 'active',
+                'COLUMN_TYPE' => 'tinyint(1)',
+            ]]),
             new NullOutput()
         );
 
@@ -89,7 +101,11 @@ final class NormalizeTinyint4ColumnsRuleTest extends TestCase
     public function testSkipsTinyint1Unsigned(): void
     {
         $logs = (new NormalizeTinyint4ColumnsRule())->apply(
-            $this->buildPdo([['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'flag', 'COLUMN_TYPE' => 'tinyint(1) unsigned']]),
+            $this->buildPdo([[
+                'TABLE_NAME' => 'users',
+                'COLUMN_NAME' => 'flag',
+                'COLUMN_TYPE' => 'tinyint(1) unsigned',
+            ]]),
             new NullOutput()
         );
 
@@ -99,7 +115,11 @@ final class NormalizeTinyint4ColumnsRuleTest extends TestCase
     public function testSkipsCleanTinyint(): void
     {
         $logs = (new NormalizeTinyint4ColumnsRule())->apply(
-            $this->buildPdo([['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'score', 'COLUMN_TYPE' => 'tinyint']]),
+            $this->buildPdo([[
+                'TABLE_NAME' => 'users',
+                'COLUMN_NAME' => 'score',
+                'COLUMN_TYPE' => 'tinyint',
+            ]]),
             new NullOutput()
         );
 
@@ -109,7 +129,11 @@ final class NormalizeTinyint4ColumnsRuleTest extends TestCase
     public function testSkipsCleanTinyintUnsigned(): void
     {
         $logs = (new NormalizeTinyint4ColumnsRule())->apply(
-            $this->buildPdo([['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'score', 'COLUMN_TYPE' => 'tinyint unsigned']]),
+            $this->buildPdo([[
+                'TABLE_NAME' => 'users',
+                'COLUMN_NAME' => 'score',
+                'COLUMN_TYPE' => 'tinyint unsigned',
+            ]]),
             new NullOutput()
         );
 
@@ -119,10 +143,26 @@ final class NormalizeTinyint4ColumnsRuleTest extends TestCase
     public function testOnlyFlagsColumnsWithDisplayWidth(): void
     {
         $rows = [
-            ['TABLE_NAME' => 'orders', 'COLUMN_NAME' => 'active', 'COLUMN_TYPE' => 'tinyint(1)'],   // skip
-            ['TABLE_NAME' => 'orders', 'COLUMN_NAME' => 'status', 'COLUMN_TYPE' => 'tinyint(4)'],   // flag
-            ['TABLE_NAME' => 'orders', 'COLUMN_NAME' => 'score',  'COLUMN_TYPE' => 'tinyint'],      // skip
-            ['TABLE_NAME' => 'orders', 'COLUMN_NAME' => 'level',  'COLUMN_TYPE' => 'tinyint(2)'],   // flag
+            [
+                'TABLE_NAME' => 'orders',
+                'COLUMN_NAME' => 'active',
+                'COLUMN_TYPE' => 'tinyint(1)',
+            ],   // skip
+            [
+                'TABLE_NAME' => 'orders',
+                'COLUMN_NAME' => 'status',
+                'COLUMN_TYPE' => 'tinyint(4)',
+            ],   // flag
+            [
+                'TABLE_NAME' => 'orders',
+                'COLUMN_NAME' => 'score',
+                'COLUMN_TYPE' => 'tinyint',
+            ],      // skip
+            [
+                'TABLE_NAME' => 'orders',
+                'COLUMN_NAME' => 'level',
+                'COLUMN_TYPE' => 'tinyint(2)',
+            ],   // flag
         ];
 
         $logs = (new NormalizeTinyint4ColumnsRule())->apply($this->buildPdo($rows), new NullOutput());
@@ -136,7 +176,11 @@ final class NormalizeTinyint4ColumnsRuleTest extends TestCase
     public function testLogToContainsAlterTableStatement(): void
     {
         $logs = (new NormalizeTinyint4ColumnsRule())->apply(
-            $this->buildPdo([['TABLE_NAME' => 'foo', 'COLUMN_NAME' => 'bar', 'COLUMN_TYPE' => 'tinyint(4)']]),
+            $this->buildPdo([[
+                'TABLE_NAME' => 'foo',
+                'COLUMN_NAME' => 'bar',
+                'COLUMN_TYPE' => 'tinyint(4)',
+            ]]),
             new NullOutput()
         );
 
@@ -145,7 +189,9 @@ final class NormalizeTinyint4ColumnsRuleTest extends TestCase
         $this->assertStringContainsString('`bar`', $logs[0]->getTo());
     }
 
-    /** @param array<int, array<string, string>> $rows */
+    /**
+     * @param array<int, array<string, string>> $rows
+     */
     private function buildPdo(array $rows): PDO
     {
         $stmt = $this->createMock(PDOStatement::class);

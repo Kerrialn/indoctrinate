@@ -92,10 +92,15 @@ final class SlugifyFieldRuleTest extends TestCase
 
         $pdo = $this->createMock(PDO::class);
         $pdo->method('prepare')->willReturnOnConsecutiveCalls(
-            $existsStmt, $targetStmt, $pkStmt, $pkStmt
+            $existsStmt,
+            $targetStmt,
+            $pkStmt,
+            $pkStmt
         );
         $pdo->method('query')->willReturnOnConsecutiveCalls(
-            $emptyIndexStmt, $emptyIndexStmt, $countStmt
+            $emptyIndexStmt,
+            $emptyIndexStmt,
+            $countStmt
         );
         $pdo->expects($this->never())->method('exec');
 

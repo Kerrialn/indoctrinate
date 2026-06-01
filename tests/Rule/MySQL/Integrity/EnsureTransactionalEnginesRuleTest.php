@@ -15,8 +15,18 @@ final class EnsureTransactionalEnginesRuleTest extends TestCase
     public function testSkipsInnodbTable(): void
     {
         $pdo = $this->buildPdo(
-            ['v' => '8.0.0', 'c' => 'MySQL Community'],
-            [['TABLE_NAME' => 'users', 'ENGINE' => 'InnoDB', 'ROW_FORMAT' => 'Dynamic', 'TABLE_ROWS' => '100', 'DATA_LENGTH' => '0', 'INDEX_LENGTH' => '0']]
+            [
+                'v' => '8.0.0',
+                'c' => 'MySQL Community',
+            ],
+            [[
+                'TABLE_NAME' => 'users',
+                'ENGINE' => 'InnoDB',
+                'ROW_FORMAT' => 'Dynamic',
+                'TABLE_ROWS' => '100',
+                'DATA_LENGTH' => '0',
+                'INDEX_LENGTH' => '0',
+            ]]
         );
 
         $logs = (new EnsureTransactionalEnginesRule())->apply($pdo, new NullOutput());
@@ -27,8 +37,18 @@ final class EnsureTransactionalEnginesRuleTest extends TestCase
     public function testFlagsMyisamTable(): void
     {
         $pdo = $this->buildPdo(
-            ['v' => '8.0.0', 'c' => 'MySQL Community'],
-            [['TABLE_NAME' => 'legacy', 'ENGINE' => 'MyISAM', 'ROW_FORMAT' => 'Fixed', 'TABLE_ROWS' => '1000', 'DATA_LENGTH' => '0', 'INDEX_LENGTH' => '0']]
+            [
+                'v' => '8.0.0',
+                'c' => 'MySQL Community',
+            ],
+            [[
+                'TABLE_NAME' => 'legacy',
+                'ENGINE' => 'MyISAM',
+                'ROW_FORMAT' => 'Fixed',
+                'TABLE_ROWS' => '1000',
+                'DATA_LENGTH' => '0',
+                'INDEX_LENGTH' => '0',
+            ]]
         );
 
         $logs = (new EnsureTransactionalEnginesRule())->apply($pdo, new NullOutput());
@@ -41,8 +61,18 @@ final class EnsureTransactionalEnginesRuleTest extends TestCase
     public function testMemoryTableIsSkippedByDefault(): void
     {
         $pdo = $this->buildPdo(
-            ['v' => '8.0.0', 'c' => ''],
-            [['TABLE_NAME' => 'cache', 'ENGINE' => 'MEMORY', 'ROW_FORMAT' => 'Fixed', 'TABLE_ROWS' => '0', 'DATA_LENGTH' => '0', 'INDEX_LENGTH' => '0']]
+            [
+                'v' => '8.0.0',
+                'c' => '',
+            ],
+            [[
+                'TABLE_NAME' => 'cache',
+                'ENGINE' => 'MEMORY',
+                'ROW_FORMAT' => 'Fixed',
+                'TABLE_ROWS' => '0',
+                'DATA_LENGTH' => '0',
+                'INDEX_LENGTH' => '0',
+            ]]
         );
 
         $logs = (new EnsureTransactionalEnginesRule())->apply($pdo, new NullOutput());
@@ -54,11 +84,23 @@ final class EnsureTransactionalEnginesRuleTest extends TestCase
     public function testMemoryTableIsFlaggedWhenForced(): void
     {
         $pdo = $this->buildPdo(
-            ['v' => '8.0.0', 'c' => ''],
-            [['TABLE_NAME' => 'cache', 'ENGINE' => 'MEMORY', 'ROW_FORMAT' => 'Fixed', 'TABLE_ROWS' => '0', 'DATA_LENGTH' => '0', 'INDEX_LENGTH' => '0']]
+            [
+                'v' => '8.0.0',
+                'c' => '',
+            ],
+            [[
+                'TABLE_NAME' => 'cache',
+                'ENGINE' => 'MEMORY',
+                'ROW_FORMAT' => 'Fixed',
+                'TABLE_ROWS' => '0',
+                'DATA_LENGTH' => '0',
+                'INDEX_LENGTH' => '0',
+            ]]
         );
 
-        $logs = (new EnsureTransactionalEnginesRule())->apply($pdo, new NullOutput(), ['force_convert_memory' => true]);
+        $logs = (new EnsureTransactionalEnginesRule())->apply($pdo, new NullOutput(), [
+            'force_convert_memory' => true,
+        ]);
 
         $this->assertCount(1, $logs);
         $this->assertStringContainsString('ENGINE=InnoDB', $logs[0]->getTo());
@@ -68,8 +110,18 @@ final class EnsureTransactionalEnginesRuleTest extends TestCase
     {
         $oneGb = 1024 * 1024 * 1024;
         $pdo = $this->buildPdo(
-            ['v' => '8.0.0', 'c' => ''],
-            [['TABLE_NAME' => 'big', 'ENGINE' => 'MyISAM', 'ROW_FORMAT' => 'Fixed', 'TABLE_ROWS' => '1000000', 'DATA_LENGTH' => (string) $oneGb, 'INDEX_LENGTH' => '0']]
+            [
+                'v' => '8.0.0',
+                'c' => '',
+            ],
+            [[
+                'TABLE_NAME' => 'big',
+                'ENGINE' => 'MyISAM',
+                'ROW_FORMAT' => 'Fixed',
+                'TABLE_ROWS' => '1000000',
+                'DATA_LENGTH' => (string) $oneGb,
+                'INDEX_LENGTH' => '0',
+            ]]
         );
 
         $logs = (new EnsureTransactionalEnginesRule())->apply($pdo, new NullOutput());
@@ -81,10 +133,27 @@ final class EnsureTransactionalEnginesRuleTest extends TestCase
     public function testReturnsNoLogsWhenAllTablesAreInnodb(): void
     {
         $pdo = $this->buildPdo(
-            ['v' => '8.0.0', 'c' => ''],
             [
-                ['TABLE_NAME' => 'users', 'ENGINE' => 'InnoDB', 'ROW_FORMAT' => 'Dynamic', 'TABLE_ROWS' => '100', 'DATA_LENGTH' => '0', 'INDEX_LENGTH' => '0'],
-                ['TABLE_NAME' => 'orders', 'ENGINE' => 'InnoDB', 'ROW_FORMAT' => 'Dynamic', 'TABLE_ROWS' => '200', 'DATA_LENGTH' => '0', 'INDEX_LENGTH' => '0'],
+                'v' => '8.0.0',
+                'c' => '',
+            ],
+            [
+                [
+                    'TABLE_NAME' => 'users',
+                    'ENGINE' => 'InnoDB',
+                    'ROW_FORMAT' => 'Dynamic',
+                    'TABLE_ROWS' => '100',
+                    'DATA_LENGTH' => '0',
+                    'INDEX_LENGTH' => '0',
+                ],
+                [
+                    'TABLE_NAME' => 'orders',
+                    'ENGINE' => 'InnoDB',
+                    'ROW_FORMAT' => 'Dynamic',
+                    'TABLE_ROWS' => '200',
+                    'DATA_LENGTH' => '0',
+                    'INDEX_LENGTH' => '0',
+                ],
             ]
         );
 

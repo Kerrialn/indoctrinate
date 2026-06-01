@@ -29,7 +29,13 @@ final class ClassifyDateStorageAcrossSchemaRuleTest extends TestCase
     {
         $candidateStmt = $this->createMock(PDOStatement::class);
         $candidateStmt->method('fetchAll')->willReturn([
-            ['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'created_at', 'DATA_TYPE' => 'datetime', 'COLUMN_TYPE' => 'datetime', 'IS_NULLABLE' => 'YES'],
+            [
+                'TABLE_NAME' => 'users',
+                'COLUMN_NAME' => 'created_at',
+                'DATA_TYPE' => 'datetime',
+                'COLUMN_TYPE' => 'datetime',
+                'IS_NULLABLE' => 'YES',
+            ],
         ]);
 
         $zeroCountStmt = $this->createMock(PDOStatement::class);
@@ -51,7 +57,13 @@ final class ClassifyDateStorageAcrossSchemaRuleTest extends TestCase
     {
         $candidateStmt = $this->createMock(PDOStatement::class);
         $candidateStmt->method('fetchAll')->willReturn([
-            ['TABLE_NAME' => 'events', 'COLUMN_NAME' => 'starts_at', 'DATA_TYPE' => 'timestamp', 'COLUMN_TYPE' => 'timestamp', 'IS_NULLABLE' => 'NO'],
+            [
+                'TABLE_NAME' => 'events',
+                'COLUMN_NAME' => 'starts_at',
+                'DATA_TYPE' => 'timestamp',
+                'COLUMN_TYPE' => 'timestamp',
+                'IS_NULLABLE' => 'NO',
+            ],
         ]);
 
         $zeroCountStmt = $this->createMock(PDOStatement::class);
@@ -71,19 +83,31 @@ final class ClassifyDateStorageAcrossSchemaRuleTest extends TestCase
     {
         $candidateStmt = $this->createMock(PDOStatement::class);
         $candidateStmt->method('fetchAll')->willReturn([
-            ['TABLE_NAME' => 'sessions', 'COLUMN_NAME' => 'created_at', 'DATA_TYPE' => 'varchar', 'COLUMN_TYPE' => 'varchar(20)', 'IS_NULLABLE' => 'YES'],
+            [
+                'TABLE_NAME' => 'sessions',
+                'COLUMN_NAME' => 'created_at',
+                'DATA_TYPE' => 'varchar',
+                'COLUMN_TYPE' => 'varchar(20)',
+                'IS_NULLABLE' => 'YES',
+            ],
         ]);
 
         $aggStmt = $this->createMock(PDOStatement::class);
         $aggStmt->method('fetch')->willReturn([
-            'total' => '100', 'null_or_empty' => '0',
-            'unix10' => '100', 'unix13' => '0',
-            'mysql_datetime' => '0', 'mysql_date' => '0',
-            'iso8601' => '0', 'ddmmyyyy' => '0',
+            'total' => '100',
+            'null_or_empty' => '0',
+            'unix10' => '100',
+            'unix13' => '0',
+            'mysql_datetime' => '0',
+            'mysql_date' => '0',
+            'iso8601' => '0',
+            'ddmmyyyy' => '0',
         ]);
 
         $sampleStmt = $this->createMock(PDOStatement::class);
-        $sampleStmt->method('fetchAll')->willReturn([['v' => '1700000000']]);
+        $sampleStmt->method('fetchAll')->willReturn([[
+            'v' => '1700000000',
+        ]]);
 
         $pdo = $this->createMock(PDO::class);
         $pdo->method('query')->willReturnOnConsecutiveCalls($candidateStmt, $aggStmt, $sampleStmt);
@@ -98,19 +122,31 @@ final class ClassifyDateStorageAcrossSchemaRuleTest extends TestCase
     {
         $candidateStmt = $this->createMock(PDOStatement::class);
         $candidateStmt->method('fetchAll')->willReturn([
-            ['TABLE_NAME' => 'orders', 'COLUMN_NAME' => 'placed_at', 'DATA_TYPE' => 'varchar', 'COLUMN_TYPE' => 'varchar(30)', 'IS_NULLABLE' => 'YES'],
+            [
+                'TABLE_NAME' => 'orders',
+                'COLUMN_NAME' => 'placed_at',
+                'DATA_TYPE' => 'varchar',
+                'COLUMN_TYPE' => 'varchar(30)',
+                'IS_NULLABLE' => 'YES',
+            ],
         ]);
 
         $aggStmt = $this->createMock(PDOStatement::class);
         $aggStmt->method('fetch')->willReturn([
-            'total' => '50', 'null_or_empty' => '0',
-            'unix10' => '0', 'unix13' => '0',
-            'mysql_datetime' => '50', 'mysql_date' => '0',
-            'iso8601' => '0', 'ddmmyyyy' => '0',
+            'total' => '50',
+            'null_or_empty' => '0',
+            'unix10' => '0',
+            'unix13' => '0',
+            'mysql_datetime' => '50',
+            'mysql_date' => '0',
+            'iso8601' => '0',
+            'ddmmyyyy' => '0',
         ]);
 
         $sampleStmt = $this->createMock(PDOStatement::class);
-        $sampleStmt->method('fetchAll')->willReturn([['v' => '2024-01-01 00:00:00']]);
+        $sampleStmt->method('fetchAll')->willReturn([[
+            'v' => '2024-01-01 00:00:00',
+        ]]);
 
         $pdo = $this->createMock(PDO::class);
         $pdo->method('query')->willReturnOnConsecutiveCalls($candidateStmt, $aggStmt, $sampleStmt);

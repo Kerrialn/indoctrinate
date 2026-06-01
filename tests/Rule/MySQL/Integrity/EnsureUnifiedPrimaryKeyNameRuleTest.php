@@ -45,7 +45,12 @@ final class EnsureUnifiedPrimaryKeyNameRuleTest extends TestCase
         $pdo = $this->buildPdo(
             ['things'],
             ['uuid'],
-            ['COLUMN_NAME' => 'uuid', 'COLUMN_TYPE' => 'varchar(36)', 'IS_NULLABLE' => 'NO', 'EXTRA' => ''],
+            [
+                'COLUMN_NAME' => 'uuid',
+                'COLUMN_TYPE' => 'varchar(36)',
+                'IS_NULLABLE' => 'NO',
+                'EXTRA' => '',
+            ],
             false,
             []
         );
@@ -63,12 +68,19 @@ final class EnsureUnifiedPrimaryKeyNameRuleTest extends TestCase
         $pdo = $this->buildPdo(
             ['products'],
             ['uuid'],
-            ['COLUMN_NAME' => 'uuid', 'COLUMN_TYPE' => 'char(36)', 'IS_NULLABLE' => 'NO', 'EXTRA' => ''],
+            [
+                'COLUMN_NAME' => 'uuid',
+                'COLUMN_TYPE' => 'char(36)',
+                'IS_NULLABLE' => 'NO',
+                'EXTRA' => '',
+            ],
             false,
             []
         );
 
-        $logs = (new EnsureUnifiedPrimaryKeyNameRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new EnsureUnifiedPrimaryKeyNameRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertCount(1, $logs);
         $this->assertSame('products', $logs[0]->getTable());
@@ -83,12 +95,19 @@ final class EnsureUnifiedPrimaryKeyNameRuleTest extends TestCase
         $pdo = $this->buildPdo(
             ['products'],
             ['uuid'],
-            ['COLUMN_NAME' => 'id', 'COLUMN_TYPE' => 'char(36)', 'IS_NULLABLE' => 'YES', 'EXTRA' => ''],
+            [
+                'COLUMN_NAME' => 'id',
+                'COLUMN_TYPE' => 'char(36)',
+                'IS_NULLABLE' => 'YES',
+                'EXTRA' => '',
+            ],
             true,
             []
         );
 
-        $logs = (new EnsureUnifiedPrimaryKeyNameRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new EnsureUnifiedPrimaryKeyNameRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertCount(1, $logs);
         $this->assertSame('contract', $logs[0]->getFrom());
@@ -101,7 +120,9 @@ final class EnsureUnifiedPrimaryKeyNameRuleTest extends TestCase
         // id is PK, uuid column still exists → auto-detect triggers remove
         $pdo = $this->buildPdoForRemove(['orders'], true);
 
-        $logs = (new EnsureUnifiedPrimaryKeyNameRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new EnsureUnifiedPrimaryKeyNameRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertCount(1, $logs);
         $this->assertSame('remove', $logs[0]->getFrom());
@@ -115,13 +136,18 @@ final class EnsureUnifiedPrimaryKeyNameRuleTest extends TestCase
         $pdo = $this->buildPdo(
             ['products'],
             ['uuid'],
-            ['COLUMN_NAME' => 'uuid', 'COLUMN_TYPE' => 'char(36)', 'IS_NULLABLE' => 'NO', 'EXTRA' => ''],
+            [
+                'COLUMN_NAME' => 'uuid',
+                'COLUMN_TYPE' => 'char(36)',
+                'IS_NULLABLE' => 'NO',
+                'EXTRA' => '',
+            ],
             false,
             []
         );
 
         $logs = (new EnsureUnifiedPrimaryKeyNameRule())->apply($pdo, new NullOutput(), [
-            'dry'    => true,
+            'dry' => true,
             'expand' => true,
         ]);
 
@@ -135,13 +161,18 @@ final class EnsureUnifiedPrimaryKeyNameRuleTest extends TestCase
         $pdo = $this->buildPdo(
             ['products'],
             ['uuid'],
-            ['COLUMN_NAME' => 'uuid', 'COLUMN_TYPE' => 'char(36)', 'IS_NULLABLE' => 'NO', 'EXTRA' => ''],
+            [
+                'COLUMN_NAME' => 'uuid',
+                'COLUMN_TYPE' => 'char(36)',
+                'IS_NULLABLE' => 'NO',
+                'EXTRA' => '',
+            ],
             false,
             []
         );
 
         $logs = (new EnsureUnifiedPrimaryKeyNameRule())->apply($pdo, new NullOutput(), [
-            'dry'      => true,
+            'dry' => true,
             'contract' => true,
         ]);
 
@@ -167,14 +198,19 @@ final class EnsureUnifiedPrimaryKeyNameRuleTest extends TestCase
         $pdo = $this->buildPdo(
             ['products'],
             ['uuid'],
-            ['COLUMN_NAME' => 'uuid', 'COLUMN_TYPE' => 'char(36)', 'IS_NULLABLE' => 'NO', 'EXTRA' => ''],
+            [
+                'COLUMN_NAME' => 'uuid',
+                'COLUMN_TYPE' => 'char(36)',
+                'IS_NULLABLE' => 'NO',
+                'EXTRA' => '',
+            ],
             false,
             []
         );
 
         $logs = (new EnsureUnifiedPrimaryKeyNameRule())->apply($pdo, new NullOutput(), [
-            'dry'      => true,
-            'expand'   => true,
+            'dry' => true,
+            'expand' => true,
             'contract' => true,
         ]);
 
@@ -203,7 +239,9 @@ final class EnsureUnifiedPrimaryKeyNameRuleTest extends TestCase
 
         $pkStmt = $this->createMock(PDOStatement::class);
         $pkStmt->method('execute')->willReturn(true);
-        $pkStmt->method('fetchAll')->willReturn(array_map(fn ($c) => ['COLUMN_NAME' => $c], $pkCols));
+        $pkStmt->method('fetchAll')->willReturn(array_map(fn ($c) => [
+            'COLUMN_NAME' => $c,
+        ], $pkCols));
 
         // columnExists — SELECT 1 queries
         $existsStmt = $this->createMock(PDOStatement::class);
@@ -253,7 +291,9 @@ final class EnsureUnifiedPrimaryKeyNameRuleTest extends TestCase
         // PK is 'id'
         $pkStmt = $this->createMock(PDOStatement::class);
         $pkStmt->method('execute')->willReturn(true);
-        $pkStmt->method('fetchAll')->willReturn([['COLUMN_NAME' => 'id']]);
+        $pkStmt->method('fetchAll')->willReturn([[
+            'COLUMN_NAME' => 'id',
+        ]]);
 
         // columnExists('uuid') check
         $existsStmt = $this->createMock(PDOStatement::class);

@@ -16,7 +16,9 @@ final class ConvertTemporalColumnsToDatetimeRuleTest extends TestCase
     {
         $pdo = $this->buildPdo([], false);
 
-        $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertCount(0, $logs);
     }
@@ -26,10 +28,20 @@ final class ConvertTemporalColumnsToDatetimeRuleTest extends TestCase
     public function testAutoDetectExpandsDateColumnWhenDtColumnMissing(): void
     {
         $pdo = $this->buildPdo([
-            ['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'dob', 'DATA_TYPE' => 'date', 'COLUMN_TYPE' => 'date', 'IS_NULLABLE' => 'YES', 'COLUMN_DEFAULT' => null, 'EXTRA' => ''],
+            [
+                'TABLE_NAME' => 'users',
+                'COLUMN_NAME' => 'dob',
+                'DATA_TYPE' => 'date',
+                'COLUMN_TYPE' => 'date',
+                'IS_NULLABLE' => 'YES',
+                'COLUMN_DEFAULT' => null,
+                'EXTRA' => '',
+            ],
         ], false);
 
-        $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertCount(1, $logs);
         $this->assertSame('users', $logs[0]->getTable());
@@ -40,10 +52,20 @@ final class ConvertTemporalColumnsToDatetimeRuleTest extends TestCase
     public function testAutoDetectExpandsTimestampColumnWhenDtColumnMissing(): void
     {
         $pdo = $this->buildPdo([
-            ['TABLE_NAME' => 'posts', 'COLUMN_NAME' => 'created_at', 'DATA_TYPE' => 'timestamp', 'COLUMN_TYPE' => 'timestamp', 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => null, 'EXTRA' => ''],
+            [
+                'TABLE_NAME' => 'posts',
+                'COLUMN_NAME' => 'created_at',
+                'DATA_TYPE' => 'timestamp',
+                'COLUMN_TYPE' => 'timestamp',
+                'IS_NULLABLE' => 'NO',
+                'COLUMN_DEFAULT' => null,
+                'EXTRA' => '',
+            ],
         ], false);
 
-        $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertCount(1, $logs);
         $this->assertSame('expand', $logs[0]->getFrom());
@@ -55,10 +77,20 @@ final class ConvertTemporalColumnsToDatetimeRuleTest extends TestCase
     {
         // {col}_dt already present means expand already ran — auto-detect triggers remove
         $pdo = $this->buildPdo([
-            ['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'dob', 'DATA_TYPE' => 'date', 'COLUMN_TYPE' => 'date', 'IS_NULLABLE' => 'YES', 'COLUMN_DEFAULT' => null, 'EXTRA' => ''],
+            [
+                'TABLE_NAME' => 'users',
+                'COLUMN_NAME' => 'dob',
+                'DATA_TYPE' => 'date',
+                'COLUMN_TYPE' => 'date',
+                'IS_NULLABLE' => 'YES',
+                'COLUMN_DEFAULT' => null,
+                'EXTRA' => '',
+            ],
         ], true);
 
-        $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertCount(1, $logs);
         $this->assertSame('remove', $logs[0]->getFrom());
@@ -69,11 +101,19 @@ final class ConvertTemporalColumnsToDatetimeRuleTest extends TestCase
     public function testExplicitExpandProducesExpandLog(): void
     {
         $pdo = $this->buildPdo([
-            ['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'dob', 'DATA_TYPE' => 'date', 'COLUMN_TYPE' => 'date', 'IS_NULLABLE' => 'YES', 'COLUMN_DEFAULT' => null, 'EXTRA' => ''],
+            [
+                'TABLE_NAME' => 'users',
+                'COLUMN_NAME' => 'dob',
+                'DATA_TYPE' => 'date',
+                'COLUMN_TYPE' => 'date',
+                'IS_NULLABLE' => 'YES',
+                'COLUMN_DEFAULT' => null,
+                'EXTRA' => '',
+            ],
         ], false);
 
         $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), [
-            'dry'    => true,
+            'dry' => true,
             'expand' => true,
         ]);
 
@@ -84,11 +124,19 @@ final class ConvertTemporalColumnsToDatetimeRuleTest extends TestCase
     public function testExplicitContractProducesContractLog(): void
     {
         $pdo = $this->buildPdo([
-            ['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'dob', 'DATA_TYPE' => 'date', 'COLUMN_TYPE' => 'date', 'IS_NULLABLE' => 'YES', 'COLUMN_DEFAULT' => null, 'EXTRA' => ''],
+            [
+                'TABLE_NAME' => 'users',
+                'COLUMN_NAME' => 'dob',
+                'DATA_TYPE' => 'date',
+                'COLUMN_TYPE' => 'date',
+                'IS_NULLABLE' => 'YES',
+                'COLUMN_DEFAULT' => null,
+                'EXTRA' => '',
+            ],
         ], true);
 
         $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), [
-            'dry'      => true,
+            'dry' => true,
             'contract' => true,
         ]);
 
@@ -99,11 +147,19 @@ final class ConvertTemporalColumnsToDatetimeRuleTest extends TestCase
     public function testExplicitRemoveProducesRemoveLog(): void
     {
         $pdo = $this->buildPdo([
-            ['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'dob', 'DATA_TYPE' => 'date', 'COLUMN_TYPE' => 'date', 'IS_NULLABLE' => 'YES', 'COLUMN_DEFAULT' => null, 'EXTRA' => ''],
+            [
+                'TABLE_NAME' => 'users',
+                'COLUMN_NAME' => 'dob',
+                'DATA_TYPE' => 'date',
+                'COLUMN_TYPE' => 'date',
+                'IS_NULLABLE' => 'YES',
+                'COLUMN_DEFAULT' => null,
+                'EXTRA' => '',
+            ],
         ], true);
 
         $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), [
-            'dry'    => true,
+            'dry' => true,
             'remove' => true,
         ]);
 
@@ -115,11 +171,19 @@ final class ConvertTemporalColumnsToDatetimeRuleTest extends TestCase
     {
         // expand: true but {col}_dt already exists — skip expand, don't log
         $pdo = $this->buildPdo([
-            ['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'dob', 'DATA_TYPE' => 'date', 'COLUMN_TYPE' => 'date', 'IS_NULLABLE' => 'YES', 'COLUMN_DEFAULT' => null, 'EXTRA' => ''],
+            [
+                'TABLE_NAME' => 'users',
+                'COLUMN_NAME' => 'dob',
+                'DATA_TYPE' => 'date',
+                'COLUMN_TYPE' => 'date',
+                'IS_NULLABLE' => 'YES',
+                'COLUMN_DEFAULT' => null,
+                'EXTRA' => '',
+            ],
         ], true);
 
         $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), [
-            'dry'    => true,
+            'dry' => true,
             'expand' => true,
         ]);
 
@@ -131,10 +195,20 @@ final class ConvertTemporalColumnsToDatetimeRuleTest extends TestCase
     public function testExistingDatetimeWithZeroDefaultGetsFixed(): void
     {
         $pdo = $this->buildPdo([
-            ['TABLE_NAME' => 'events', 'COLUMN_NAME' => 'starts_at', 'DATA_TYPE' => 'datetime', 'COLUMN_TYPE' => 'datetime', 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => '0000-00-00 00:00:00', 'EXTRA' => ''],
+            [
+                'TABLE_NAME' => 'events',
+                'COLUMN_NAME' => 'starts_at',
+                'DATA_TYPE' => 'datetime',
+                'COLUMN_TYPE' => 'datetime',
+                'IS_NULLABLE' => 'NO',
+                'COLUMN_DEFAULT' => '0000-00-00 00:00:00',
+                'EXTRA' => '',
+            ],
         ], false);
 
-        $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertCount(1, $logs);
         $this->assertStringContainsString('zero', $logs[0]->getTo());
@@ -150,11 +224,29 @@ final class ConvertTemporalColumnsToDatetimeRuleTest extends TestCase
         // for created_at), not a second log from the default-fixer branch treating
         // created_at_dt as a standalone DATETIME column.
         $pdo = $this->buildPdo([
-            ['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'created_at',    'DATA_TYPE' => 'date',     'COLUMN_TYPE' => 'date',     'IS_NULLABLE' => 'NO',  'COLUMN_DEFAULT' => null, 'EXTRA' => ''],
-            ['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'created_at_dt', 'DATA_TYPE' => 'datetime', 'COLUMN_TYPE' => 'datetime', 'IS_NULLABLE' => 'YES', 'COLUMN_DEFAULT' => null, 'EXTRA' => ''],
+            [
+                'TABLE_NAME' => 'users',
+                'COLUMN_NAME' => 'created_at',
+                'DATA_TYPE' => 'date',
+                'COLUMN_TYPE' => 'date',
+                'IS_NULLABLE' => 'NO',
+                'COLUMN_DEFAULT' => null,
+                'EXTRA' => '',
+            ],
+            [
+                'TABLE_NAME' => 'users',
+                'COLUMN_NAME' => 'created_at_dt',
+                'DATA_TYPE' => 'datetime',
+                'COLUMN_TYPE' => 'datetime',
+                'IS_NULLABLE' => 'YES',
+                'COLUMN_DEFAULT' => null,
+                'EXTRA' => '',
+            ],
         ], true); // created_at_dt exists → auto-detect triggers remove for created_at
 
-        $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertCount(1, $logs);
         $this->assertSame('created_at', $logs[0]->getColumn());
@@ -166,10 +258,20 @@ final class ConvertTemporalColumnsToDatetimeRuleTest extends TestCase
         // A DATETIME column whose name happens to end in _dt but whose base name
         // has NO DATE/TIMESTAMP sibling should still be processed by the default-fixer.
         $pdo = $this->buildPdo([
-            ['TABLE_NAME' => 'events', 'COLUMN_NAME' => 'scheduled_dt', 'DATA_TYPE' => 'datetime', 'COLUMN_TYPE' => 'datetime', 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => '0000-00-00 00:00:00', 'EXTRA' => ''],
+            [
+                'TABLE_NAME' => 'events',
+                'COLUMN_NAME' => 'scheduled_dt',
+                'DATA_TYPE' => 'datetime',
+                'COLUMN_TYPE' => 'datetime',
+                'IS_NULLABLE' => 'NO',
+                'COLUMN_DEFAULT' => '0000-00-00 00:00:00',
+                'EXTRA' => '',
+            ],
         ], false);
 
-        $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         // scheduled_dt has no DATE/TIMESTAMP sibling named 'scheduled', so it should
         // pass through to the default-fixer and produce a log for the zero default.
@@ -183,10 +285,20 @@ final class ConvertTemporalColumnsToDatetimeRuleTest extends TestCase
     public function testSkipsTableMatchingSkipTableLike(): void
     {
         $pdo = $this->buildPdo([
-            ['TABLE_NAME' => 'cache_data', 'COLUMN_NAME' => 'created_at', 'DATA_TYPE' => 'timestamp', 'COLUMN_TYPE' => 'timestamp', 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => null, 'EXTRA' => ''],
+            [
+                'TABLE_NAME' => 'cache_data',
+                'COLUMN_NAME' => 'created_at',
+                'DATA_TYPE' => 'timestamp',
+                'COLUMN_TYPE' => 'timestamp',
+                'IS_NULLABLE' => 'NO',
+                'COLUMN_DEFAULT' => null,
+                'EXTRA' => '',
+            ],
         ], false);
 
-        $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertCount(0, $logs);
     }
@@ -194,12 +306,28 @@ final class ConvertTemporalColumnsToDatetimeRuleTest extends TestCase
     public function testOnlyTablesFilterIsRespected(): void
     {
         $pdo = $this->buildPdo([
-            ['TABLE_NAME' => 'users', 'COLUMN_NAME' => 'created_at', 'DATA_TYPE' => 'date', 'COLUMN_TYPE' => 'date', 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => null, 'EXTRA' => ''],
-            ['TABLE_NAME' => 'posts', 'COLUMN_NAME' => 'published_at', 'DATA_TYPE' => 'date', 'COLUMN_TYPE' => 'date', 'IS_NULLABLE' => 'YES', 'COLUMN_DEFAULT' => null, 'EXTRA' => ''],
+            [
+                'TABLE_NAME' => 'users',
+                'COLUMN_NAME' => 'created_at',
+                'DATA_TYPE' => 'date',
+                'COLUMN_TYPE' => 'date',
+                'IS_NULLABLE' => 'NO',
+                'COLUMN_DEFAULT' => null,
+                'EXTRA' => '',
+            ],
+            [
+                'TABLE_NAME' => 'posts',
+                'COLUMN_NAME' => 'published_at',
+                'DATA_TYPE' => 'date',
+                'COLUMN_TYPE' => 'date',
+                'IS_NULLABLE' => 'YES',
+                'COLUMN_DEFAULT' => null,
+                'EXTRA' => '',
+            ],
         ], false);
 
         $logs = (new ConvertTemporalColumnsToDatetimeRule())->apply($pdo, new NullOutput(), [
-            'dry'         => true,
+            'dry' => true,
             'only_tables' => ['users'],
         ]);
 

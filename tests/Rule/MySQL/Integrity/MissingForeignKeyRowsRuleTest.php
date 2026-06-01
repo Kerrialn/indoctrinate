@@ -17,7 +17,9 @@ final class MissingForeignKeyRowsRuleTest extends TestCase
         $pdo = $this->createMock(PDO::class);
         $pdo->method('query')->willReturn($this->stmt([]));
 
-        $logs = (new MissingForeignKeyRowsRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new MissingForeignKeyRowsRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertCount(0, $logs);
     }
@@ -25,14 +27,22 @@ final class MissingForeignKeyRowsRuleTest extends TestCase
     public function testReturnsEmptyWhenNoMissingParentRows(): void
     {
         $fkStmt = $this->stmt([
-            ['table_name' => 'orders', 'column_name' => 'user_id', 'referenced_table_name' => 'users', 'referenced_column_name' => 'id', 'constraint_name' => 'fk_orders_user'],
+            [
+                'table_name' => 'orders',
+                'column_name' => 'user_id',
+                'referenced_table_name' => 'users',
+                'referenced_column_name' => 'id',
+                'constraint_name' => 'fk_orders_user',
+            ],
         ]);
         $missingStmt = $this->colStmt([]);
 
         $pdo = $this->createMock(PDO::class);
         $pdo->method('query')->willReturnOnConsecutiveCalls($fkStmt, $missingStmt);
 
-        $logs = (new MissingForeignKeyRowsRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new MissingForeignKeyRowsRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertCount(0, $logs);
     }
@@ -40,15 +50,25 @@ final class MissingForeignKeyRowsRuleTest extends TestCase
     public function testDetectsMissingParentRowAndLogsInDryMode(): void
     {
         $fkStmt = $this->stmt([
-            ['table_name' => 'orders', 'column_name' => 'user_id', 'referenced_table_name' => 'users', 'referenced_column_name' => 'id', 'constraint_name' => 'fk_orders_user'],
+            [
+                'table_name' => 'orders',
+                'column_name' => 'user_id',
+                'referenced_table_name' => 'users',
+                'referenced_column_name' => 'id',
+                'constraint_name' => 'fk_orders_user',
+            ],
         ]);
-        $missingStmt = $this->colStmt([['missing_id' => '99']]);
+        $missingStmt = $this->colStmt([[
+            'missing_id' => '99',
+        ]]);
 
         $pdo = $this->createMock(PDO::class);
         $pdo->method('query')->willReturnOnConsecutiveCalls($fkStmt, $missingStmt);
         $pdo->expects($this->never())->method('prepare'); // dry=true: no stub inserts
 
-        $logs = (new MissingForeignKeyRowsRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new MissingForeignKeyRowsRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertCount(1, $logs);
         $this->assertSame('users', $logs[0]->getTable());
@@ -61,9 +81,17 @@ final class MissingForeignKeyRowsRuleTest extends TestCase
     {
         // dry defaults to true; prepare() for INSERT should never be called
         $fkStmt = $this->stmt([
-            ['table_name' => 'orders', 'column_name' => 'user_id', 'referenced_table_name' => 'users', 'referenced_column_name' => 'id', 'constraint_name' => 'fk'],
+            [
+                'table_name' => 'orders',
+                'column_name' => 'user_id',
+                'referenced_table_name' => 'users',
+                'referenced_column_name' => 'id',
+                'constraint_name' => 'fk',
+            ],
         ]);
-        $missingStmt = $this->colStmt([['missing_id' => '7']]);
+        $missingStmt = $this->colStmt([[
+            'missing_id' => '7',
+        ]]);
 
         $pdo = $this->createMock(PDO::class);
         $pdo->method('query')->willReturnOnConsecutiveCalls($fkStmt, $missingStmt);
@@ -75,16 +103,36 @@ final class MissingForeignKeyRowsRuleTest extends TestCase
     public function testDetectsMultipleMissingParentsAcrossForeignKeys(): void
     {
         $fkStmt = $this->stmt([
-            ['table_name' => 'orders', 'column_name' => 'user_id', 'referenced_table_name' => 'users', 'referenced_column_name' => 'id', 'constraint_name' => 'fk1'],
-            ['table_name' => 'items', 'column_name' => 'order_id', 'referenced_table_name' => 'orders', 'referenced_column_name' => 'id', 'constraint_name' => 'fk2'],
+            [
+                'table_name' => 'orders',
+                'column_name' => 'user_id',
+                'referenced_table_name' => 'users',
+                'referenced_column_name' => 'id',
+                'constraint_name' => 'fk1',
+            ],
+            [
+                'table_name' => 'items',
+                'column_name' => 'order_id',
+                'referenced_table_name' => 'orders',
+                'referenced_column_name' => 'id',
+                'constraint_name' => 'fk2',
+            ],
         ]);
-        $missingUsersStmt = $this->colStmt([['missing_id' => '1'], ['missing_id' => '2']]);
-        $missingOrdersStmt = $this->colStmt([['missing_id' => '3']]);
+        $missingUsersStmt = $this->colStmt([[
+            'missing_id' => '1',
+        ], [
+            'missing_id' => '2',
+        ]]);
+        $missingOrdersStmt = $this->colStmt([[
+            'missing_id' => '3',
+        ]]);
 
         $pdo = $this->createMock(PDO::class);
         $pdo->method('query')->willReturnOnConsecutiveCalls($fkStmt, $missingUsersStmt, $missingOrdersStmt);
 
-        $logs = (new MissingForeignKeyRowsRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new MissingForeignKeyRowsRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertCount(3, $logs);
     }

@@ -16,7 +16,11 @@ final class EnsureCharsetCollationRuleTest extends TestCase
     {
         $pdo = $this->buildPdo(
             [
-                ['TABLE_NAME' => 'users', 'TABLE_COLLATION' => 'latin1_swedish_ci', 'CHARACTER_SET_NAME' => 'latin1'],
+                [
+                    'TABLE_NAME' => 'users',
+                    'TABLE_COLLATION' => 'latin1_swedish_ci',
+                    'CHARACTER_SET_NAME' => 'latin1',
+                ],
             ],
             []
         );
@@ -37,7 +41,11 @@ final class EnsureCharsetCollationRuleTest extends TestCase
     {
         $pdo = $this->buildPdo(
             [
-                ['TABLE_NAME' => 'users', 'TABLE_COLLATION' => 'utf8mb4_unicode_ci', 'CHARACTER_SET_NAME' => 'utf8mb4'],
+                [
+                    'TABLE_NAME' => 'users',
+                    'TABLE_COLLATION' => 'utf8mb4_unicode_ci',
+                    'CHARACTER_SET_NAME' => 'utf8mb4',
+                ],
             ],
             []
         );
@@ -78,7 +86,11 @@ final class EnsureCharsetCollationRuleTest extends TestCase
     {
         $pdo = $this->buildPdo(
             [
-                ['TABLE_NAME' => 'cache_items', 'TABLE_COLLATION' => 'latin1_swedish_ci', 'CHARACTER_SET_NAME' => 'latin1'],
+                [
+                    'TABLE_NAME' => 'cache_items',
+                    'TABLE_COLLATION' => 'latin1_swedish_ci',
+                    'CHARACTER_SET_NAME' => 'latin1',
+                ],
             ],
             []
         );
@@ -93,7 +105,11 @@ final class EnsureCharsetCollationRuleTest extends TestCase
     {
         $pdo = $this->buildPdo(
             [
-                ['TABLE_NAME' => 'legacy', 'TABLE_COLLATION' => 'latin1_swedish_ci', 'CHARACTER_SET_NAME' => 'latin1'],
+                [
+                    'TABLE_NAME' => 'legacy',
+                    'TABLE_COLLATION' => 'latin1_swedish_ci',
+                    'CHARACTER_SET_NAME' => 'latin1',
+                ],
             ],
             []
         );
@@ -109,8 +125,16 @@ final class EnsureCharsetCollationRuleTest extends TestCase
     {
         $pdo = $this->buildPdo(
             [
-                ['TABLE_NAME' => 'users', 'TABLE_COLLATION' => 'latin1_swedish_ci', 'CHARACTER_SET_NAME' => 'latin1'],
-                ['TABLE_NAME' => 'orders', 'TABLE_COLLATION' => 'latin1_swedish_ci', 'CHARACTER_SET_NAME' => 'latin1'],
+                [
+                    'TABLE_NAME' => 'users',
+                    'TABLE_COLLATION' => 'latin1_swedish_ci',
+                    'CHARACTER_SET_NAME' => 'latin1',
+                ],
+                [
+                    'TABLE_NAME' => 'orders',
+                    'TABLE_COLLATION' => 'latin1_swedish_ci',
+                    'CHARACTER_SET_NAME' => 'latin1',
+                ],
             ],
             []
         );
@@ -143,7 +167,11 @@ final class EnsureCharsetCollationRuleTest extends TestCase
     {
         $pdo = $this->buildPdo(
             [
-                ['TABLE_NAME' => 'users', 'TABLE_COLLATION' => 'utf8mb4_unicode_ci', 'CHARACTER_SET_NAME' => 'utf8mb4'],
+                [
+                    'TABLE_NAME' => 'users',
+                    'TABLE_COLLATION' => 'utf8mb4_unicode_ci',
+                    'CHARACTER_SET_NAME' => 'utf8mb4',
+                ],
             ],
             []
         );
@@ -162,7 +190,11 @@ final class EnsureCharsetCollationRuleTest extends TestCase
     {
         $pdo = $this->buildPdo(
             [
-                ['TABLE_NAME' => 'users', 'TABLE_COLLATION' => 'latin1_swedish_ci', 'CHARACTER_SET_NAME' => 'latin1'],
+                [
+                    'TABLE_NAME' => 'users',
+                    'TABLE_COLLATION' => 'latin1_swedish_ci',
+                    'CHARACTER_SET_NAME' => 'latin1',
+                ],
             ],
             [
                 [

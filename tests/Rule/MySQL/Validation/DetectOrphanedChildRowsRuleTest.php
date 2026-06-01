@@ -26,7 +26,12 @@ final class DetectOrphanedChildRowsRuleTest extends TestCase
     public function testReturnsEmptyWhenNoOrphans(): void
     {
         $fkStmt = $this->stmt([
-            ['TABLE_NAME' => 'orders', 'COLUMN_NAME' => 'user_id', 'REFERENCED_TABLE_NAME' => 'users', 'REFERENCED_COLUMN_NAME' => 'id'],
+            [
+                'TABLE_NAME' => 'orders',
+                'COLUMN_NAME' => 'user_id',
+                'REFERENCED_TABLE_NAME' => 'users',
+                'REFERENCED_COLUMN_NAME' => 'id',
+            ],
         ]);
         $orphanStmt = $this->stmt([]); // no orphans
 
@@ -41,7 +46,12 @@ final class DetectOrphanedChildRowsRuleTest extends TestCase
     public function testDetectsSingleOrphanedRow(): void
     {
         $fkStmt = $this->stmt([
-            ['TABLE_NAME' => 'orders', 'COLUMN_NAME' => 'user_id', 'REFERENCED_TABLE_NAME' => 'users', 'REFERENCED_COLUMN_NAME' => 'id'],
+            [
+                'TABLE_NAME' => 'orders',
+                'COLUMN_NAME' => 'user_id',
+                'REFERENCED_TABLE_NAME' => 'users',
+                'REFERENCED_COLUMN_NAME' => 'id',
+            ],
         ]);
         $orphanStmt = $this->colStmt(['42']);
 
@@ -60,8 +70,18 @@ final class DetectOrphanedChildRowsRuleTest extends TestCase
     public function testDetectsMultipleOrphansAcrossMultipleForeignKeys(): void
     {
         $fkStmt = $this->stmt([
-            ['TABLE_NAME' => 'orders', 'COLUMN_NAME' => 'user_id', 'REFERENCED_TABLE_NAME' => 'users', 'REFERENCED_COLUMN_NAME' => 'id'],
-            ['TABLE_NAME' => 'comments', 'COLUMN_NAME' => 'post_id', 'REFERENCED_TABLE_NAME' => 'posts', 'REFERENCED_COLUMN_NAME' => 'id'],
+            [
+                'TABLE_NAME' => 'orders',
+                'COLUMN_NAME' => 'user_id',
+                'REFERENCED_TABLE_NAME' => 'users',
+                'REFERENCED_COLUMN_NAME' => 'id',
+            ],
+            [
+                'TABLE_NAME' => 'comments',
+                'COLUMN_NAME' => 'post_id',
+                'REFERENCED_TABLE_NAME' => 'posts',
+                'REFERENCED_COLUMN_NAME' => 'id',
+            ],
         ]);
         $ordersOrphanStmt = $this->colStmt(['5', '9']);
         $commentsOrphanStmt = $this->colStmt(['11']);

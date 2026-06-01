@@ -6,10 +6,12 @@ use Indoctrinate\Config\ConnectionCredentials;
 use Indoctrinate\Config\Context;
 use Indoctrinate\Config\IndoctrinateConfig;
 use Indoctrinate\Pdo\CapturingPdo;
-use Indoctrinate\Rule\Contract\BreaksExpandContractPatternInterface;
-use Indoctrinate\Rule\Contract\RuleConstraintInterface;
-use Indoctrinate\Rule\Contract\RuleInterface;
-use Indoctrinate\Set\Contract\SetInterface;
+use Indoctrinate\Service\Contract\ArtifactWriterInterface;
+use Indoctrinate\Service\Contract\DestructiveRuleDetectorInterface;
+use Indoctrinate\Service\Contract\RuleRunnerInterface;
+use Indoctrinate\Service\Impact\CodeReferenceScanner;
+use Indoctrinate\Service\Impact\SqlChangeParser;
+use Indoctrinate\Service\RuleRunResult;
 use RuntimeException;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\Table;
@@ -17,7 +19,6 @@ use Symfony\Component\Console\Helper\TableCell;
 use Symfony\Component\Console\Helper\TableSeparator;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\NullOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Exception\IOExceptionInterface;
@@ -27,9 +28,24 @@ class DatabaseAnalyzerCommand extends Command
 {
     protected static $defaultName = 'analyze';
 
-    private ?IndoctrinateConfig $config = null;
-
     private bool $configJustCreated = false;
+
+    private RuleRunnerInterface $ruleRunner;
+
+    private DestructiveRuleDetectorInterface $destructiveRuleDetector;
+
+    private ArtifactWriterInterface $artifactWriter;
+
+    public function __construct(
+        RuleRunnerInterface $ruleRunner,
+        DestructiveRuleDetectorInterface $destructiveRuleDetector,
+        ArtifactWriterInterface $artifactWriter
+    ) {
+        parent::__construct();
+        $this->ruleRunner = $ruleRunner;
+        $this->destructiveRuleDetector = $destructiveRuleDetector;
+        $this->artifactWriter = $artifactWriter;
+    }
 
     protected function configure(): void
     {
@@ -47,7 +63,8 @@ class DatabaseAnalyzerCommand extends Command
             ->addOption('db-pass-file', null, InputOption::VALUE_OPTIONAL, 'Path to file containing DB password')
             ->addOption('report', null, InputOption::VALUE_NONE, 'Output a summary table of findings per rule (exits non-zero if any findings)')
             ->addOption('sql-dump', null, InputOption::VALUE_OPTIONAL, 'Capture planned SQL and write to a .sql file (default: indoctrinate-<timestamp>.sql)', false)
-            ->addOption('migration', null, InputOption::VALUE_OPTIONAL, 'Capture planned SQL and write a Doctrine migration class (default dir: migrations/)', false);
+            ->addOption('migration', null, InputOption::VALUE_OPTIONAL, 'Capture planned SQL and write a Doctrine migration class (default dir: migrations/)', false)
+            ->addOption('impact', null, InputOption::VALUE_OPTIONAL, 'Scan a source directory for code references that will break (default: src/)', false);
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -57,25 +74,27 @@ class DatabaseAnalyzerCommand extends Command
         $isReport = (bool) $input->getOption('report');
         $sqlDumpOption = $input->getOption('sql-dump');
         $migrationOption = $input->getOption('migration');
+        $impactOption = $input->getOption('impact');
         $isSqlDump = $sqlDumpOption !== false;
         $isMigration = $migrationOption !== false;
-        $isCapturing = $isSqlDump || $isMigration;
+        $isImpact = $impactOption !== false;
+        $isCapturing = $isSqlDump || $isMigration || $isImpact;
 
         if ($isCapturing && $isReport) {
-            $io->error('--sql-dump / --migration cannot be combined with --report.');
+            $io->error('--sql-dump / --migration / --impact cannot be combined with --report.');
             return Command::FAILURE;
         }
+
         $logDir = $input->getOption('log');
         $isProd = (bool) $input->getOption('prod');
-        $logHandle = null;
-        $logPath = null;
-        $filesystem = new Filesystem();
         $dsn = (string) ($input->getOption('dsn') ?? '');
+        $filesystem = new Filesystem();
+
+        // ── Config ───────────────────────────────────────────────────────────
 
         $configFilePath = getcwd() . '/indoctrinate.php';
         $distFilePath = getcwd() . '/indoctrinate.dist.php';
 
-        // Ensure config file exists (and STOP if we just created it)
         $ensureStatus = $this->ensureConfigurationFile($filesystem, $io, $configFilePath, $distFilePath, $isProd);
         if ($ensureStatus !== Command::SUCCESS) {
             return $ensureStatus;
@@ -85,57 +104,57 @@ class DatabaseAnalyzerCommand extends Command
             return Command::SUCCESS;
         }
 
-        // Load config
-        $this->config = new IndoctrinateConfig();
-        $context = new Context($isDry, $isProd, $logDir, $configFilePath, $dsn);
-        $this->config->setContext($context);
+        $config = new IndoctrinateConfig();
+        $config->setContext(new Context($isDry, $isProd, $logDir, $configFilePath, $dsn));
 
         $loader = require $configFilePath;
         if (! is_callable($loader)) {
             $io->error("File $configFilePath must return a callable that accepts IndoctrinateConfig.");
             return Command::FAILURE;
         }
-        $loader($this->config);
-        if ($this->config->getConnectionCredentials() === null) {
+        $loader($config);
+
+        if ($config->getConnectionCredentials() === null) {
             throw new RuntimeException(
                 'No connection configured. Add $config->connection(...) in indoctrinate.php or run with --prod and --dsn/--db-* flags.'
             );
         }
 
         $credentials = $isProd
-            ? $this->resolveCredentials($input, $this->config)
-            : ($this->config->getConnectionCredentials());
+            ? $this->resolveCredentials($input, $config)
+            : $config->getConnectionCredentials();
 
         if ($isProd) {
             $io->note('Prod mode: ignoring credentials defined in indoctrinate.php.');
         }
 
-        $this->config->setConnectionCredentials($credentials);
+        $config->setConnectionCredentials($credentials);
+
+        // ── Logging ──────────────────────────────────────────────────────────
+
+        $logHandle = null;
+        $logPath = null;
 
         if (! empty($logDir)) {
             try {
                 if (! $filesystem->exists($logDir)) {
                     $filesystem->mkdir($logDir);
                 }
-                $timestamp = date('Y-m-d_H-i-s');
-                $logFilename = "db-fixer-{$timestamp}.log";
-                $logPath = rtrim($logDir, '/\\') . DIRECTORY_SEPARATOR . $logFilename;
-
+                $logPath = rtrim($logDir, '/\\') . DIRECTORY_SEPARATOR . 'db-fixer-' . date('Y-m-d_H-i-s') . '.log';
                 $logHandle = fopen($logPath, 'a');
                 if (! $logHandle) {
                     throw new RuntimeException("Could not open log file for writing: $logPath");
                 }
-                fwrite($logHandle, "[START] DB Fix started at " . date('Y-m-d H:i:s') . PHP_EOL);
+                fwrite($logHandle, '[START] DB Fix started at ' . date('Y-m-d H:i:s') . PHP_EOL);
             } catch (IOExceptionInterface $e) {
-                $io->error("Failed to prepare log file: " . $e->getMessage());
+                $io->error('Failed to prepare log file: ' . $e->getMessage());
                 return Command::FAILURE;
             }
         }
 
-        // Connect
+        // ── Connect ──────────────────────────────────────────────────────────
+
         $capturingPdo = null;
-        /** @var list<string> $allCapturedSql */
-        $allCapturedSql = [];
 
         try {
             $pdoOptions = [
@@ -144,7 +163,7 @@ class DatabaseAnalyzerCommand extends Command
 
             if ($isCapturing) {
                 $capturingPdo = new CapturingPdo(
-                    $this->config->getDsn(),
+                    $config->getDsn(),
                     $credentials->getUser(),
                     $credentials->getPassword(),
                     $pdoOptions
@@ -152,35 +171,33 @@ class DatabaseAnalyzerCommand extends Command
                 $pdo = $capturingPdo;
             } else {
                 $pdo = new \PDO(
-                    $this->config->getDsn(),
+                    $config->getDsn(),
                     $credentials->getUser(),
                     $credentials->getPassword(),
                     $pdoOptions
                 );
             }
         } catch (\PDOException $e) {
-            $io->error("Could not connect to database: " . $e->getMessage());
+            $io->error('Could not connect to database: ' . $e->getMessage());
             return Command::FAILURE;
         }
 
-        $io->success("Connected to database.");
+        $io->success('Connected to database.');
         $io->newLine();
 
         $activeDriver = $pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);
 
-        // ===================== DESTRUCTIVE ACTION PRE-FLIGHT CHECK ==================
+        // ── Destructive pre-flight ────────────────────────────────────────────
+
         if (! $isDry && ! $isReport && ! $isCapturing) {
-            $destructiveRules = $this->collectDestructiveRules(
-                $this->config->getSets(),
-                $this->config->getRules(),
+            $destructiveRules = $this->destructiveRuleDetector->collect(
+                $config->getSets(),
+                $config->getRules(),
                 $activeDriver
             );
 
             if ($destructiveRules !== []) {
-                $lines = [
-                    'The following rules will execute DESTRUCTIVE operations (e.g. DROP COLUMN, DROP PRIMARY KEY, DROP FOREIGN KEY):',
-                    '',
-                ];
+                $lines = ['The following rules will execute DESTRUCTIVE operations (e.g. DROP COLUMN, DROP PRIMARY KEY, DROP FOREIGN KEY):', ''];
                 foreach ($destructiveRules as $r) {
                     $lines[] = "  • {$r['name']} — {$r['description']}";
                 }
@@ -193,7 +210,7 @@ class DatabaseAnalyzerCommand extends Command
                 if (! $io->confirm('Do you want to proceed with these destructive operations?', false)) {
                     $io->warning('Aborted: destructive operations cancelled by user.');
                     if ($logHandle) {
-                        fwrite($logHandle, "[ABORTED] User cancelled destructive operations at " . date('Y-m-d H:i:s') . PHP_EOL);
+                        fwrite($logHandle, '[ABORTED] User cancelled destructive operations at ' . date('Y-m-d H:i:s') . PHP_EOL);
                         fclose($logHandle);
                     }
                     return Command::FAILURE;
@@ -201,10 +218,9 @@ class DatabaseAnalyzerCommand extends Command
 
                 $io->newLine();
 
-                // Phase 2: volume check — silent dry discovery to count affected schema objects
-                $threshold = $this->config->getDestructiveThreshold();
+                $threshold = $config->getDestructiveThreshold();
                 $io->writeln('<info>Running discovery pass to assess scale of destructive changes…</info>');
-                $discoveryLogs = $this->runDestructiveDiscovery($pdo, $activeDriver);
+                $discoveryLogs = $this->destructiveRuleDetector->discover($pdo, $config, $activeDriver);
                 $discoveryCount = count($discoveryLogs);
                 $io->writeln(sprintf('<info>Discovery complete: %d schema object(s) would be affected.</info>', $discoveryCount));
                 $io->newLine();
@@ -215,14 +231,7 @@ class DatabaseAnalyzerCommand extends Command
                         $byRule[$log->getRule()][] = $log->getTable() . ($log->getColumn() !== '' ? '.' . $log->getColumn() : '');
                     }
 
-                    $volumeLines = [
-                        sprintf(
-                            'Discovery found %d schema object(s) that will be modified by destructive rules (threshold: %d).',
-                            $discoveryCount,
-                            $threshold
-                        ),
-                        '',
-                    ];
+                    $volumeLines = [sprintf('Discovery found %d schema object(s) that will be modified by destructive rules (threshold: %d).', $discoveryCount, $threshold), ''];
                     foreach ($byRule as $rule => $items) {
                         $volumeLines[] = sprintf('  [%s] %d item(s):', $rule, count($items));
                         foreach (array_slice($items, 0, 10) as $item) {
@@ -252,321 +261,41 @@ class DatabaseAnalyzerCommand extends Command
             }
         }
 
-        // ===================== RUN SETS (with per-rule constraints) ==================
-        /** @var array<array{name: string, count: int, group: string}> $reportRows */
-        $reportRows = [];
+        // ── Run analysis ─────────────────────────────────────────────────────
 
-        $sets = $this->config->getSets();
+        $logger = fn (string $msg) => $this->logMessage($logHandle, $msg);
 
-        if ($sets !== []) {
-            foreach ($sets as $class => $rulesConfiguration) {
+        $result = $this->ruleRunner->run(
+            $pdo,
+            $io,
+            $config,
+            $activeDriver,
+            $isDry,
+            $isCapturing,
+            $isReport,
+            $logger
+        );
 
-                if (! is_string($class) || ! class_exists($class)) {
-                    $msg = "Set class not found: {$class}";
-                    $io->warning($msg);
-                    $this->logMessage($logHandle, $msg);
-                    continue;
-                }
+        // ── Report table ──────────────────────────────────────────────────────
 
-                /** @var SetInterface $set */
-                $set = new $class();
-                if (! $set instanceof SetInterface) {
-                    $msg = "Set {$class} must implement SetInterface.";
-                    $io->warning($msg);
-                    $this->logMessage($logHandle, $msg);
-                    continue;
-                }
-
-                $incompatible = array_filter($set->getRules(), fn (string $r) => $r::getDriver() !== $activeDriver);
-                if ($incompatible !== []) {
-                    $msg = "Skipping set {$class}: contains rules incompatible with driver '{$activeDriver}'.";
-                    $io->warning($msg);
-                    $this->logMessage($logHandle, $msg);
-                    continue;
-                }
-
-                $title = "Running set: " . $set->getName() . " — " . $set->getDescription();
-                $io->section($title);
-                $this->logMessage($logHandle, $title);
-
-                $set->config(is_array($rulesConfiguration) ? $rulesConfiguration : []);
-
-                if (! $isDry) {
-                    foreach ($set->getRules() as $ruleClass) {
-                        if (is_a($ruleClass, BreaksExpandContractPatternInterface::class, true)) {
-                            $io->warning(sprintf(
-                                '%s does not follow the Expand/Contract pattern — it modifies existing columns or table properties in-place and may lock tables. Ensure you have a backup before continuing.',
-                                $ruleClass::getName()
-                            ));
-                        }
-                    }
-                }
-
-                // Pass your map straight through; the set will pick constraints by Rule FQCN.
-                $setContext = [
-                    'dry' => $isCapturing ? true : $this->config->getContext()->isDry(),
-                ];
-
-                try {
-                    $logs = $set->execute($pdo, $io, $setContext);
-                    $issueCount = count($logs);
-
-                    if ($isCapturing) {
-                        foreach ($logs as $log) {
-                            if ($this->isSqlStatement($log->getTo())) {
-                                $allCapturedSql[] = rtrim(trim($log->getTo()), ';');
-                            }
-                        }
-                    }
-
-                    // Group logs by rule name for report mode
-                    $countByRuleName = [];
-                    foreach ($logs as $log) {
-                        $countByRuleName[$log->getRule()] = ($countByRuleName[$log->getRule()] ?? 0) + 1;
-                    }
-                    foreach ($set->getRules() as $ruleClass) {
-                        $ruleName = $ruleClass::getName();
-                        $reportRows[] = [
-                            'name' => $ruleName,
-                            'count' => $countByRuleName[$ruleName] ?? 0,
-                            'group' => $set->getName(),
-                        ];
-                    }
-
-                    if ($isReport) {
-                        $this->logMessage($logHandle, "Set {$class}: {$issueCount} total findings");
-                    } elseif ($issueCount === 0) {
-                        $io->success("✔ {$class}" . ($isDry ? ' (dry run)' : ''));
-                        $this->logMessage($logHandle, "No findings from set {$class}");
-                    } else {
-                        foreach ($logs as $log) {
-                            $msg = $log->getMessage();
-                            $this->logMessage($logHandle, $msg);
-                            $io->warning($msg);
-                        }
-                        $io->note("Findings: {$issueCount}");
-                        $this->logMessage($logHandle, "Findings: {$issueCount}");
-                    }
-                } catch (\Throwable $e) {
-                    $error = "Exception during set {$class}: " . $e->getMessage();
-                    $io->error($error);
-                    $this->logMessage($logHandle, "✘ {$class} failed: " . $e->getMessage());
-                }
-
-                if (! $isReport) {
-                    $io->writeln(str_repeat('-', 80));
-                }
-            }
-            $io->newLine(2);
-        } else {
-            $io->note('No sets registered.');
+        if ($isReport && $result->reportRows !== []) {
+            $this->renderReportTable($output, $result->reportRows);
         }
 
-        /** @var array<string|int, mixed> $rules */
-        $rules = $this->config->getRules();
-
-        if (empty($rules)) {
-            if ($isReport && $reportRows !== []) {
-                $this->renderReportTable($output, $reportRows);
-            }
-            if ($logHandle) {
-                fwrite($logHandle, "[END] DB Fix completed at " . date('Y-m-d H:i:s') . PHP_EOL);
-                fclose($logHandle);
-                if ($logPath) {
-                    $io->note("Log written to: $logPath");
-                }
-            }
-            if ($isReport) {
-                $totalFindings = array_sum(array_column($reportRows, 'count'));
-                if ($totalFindings > 0) {
-                    $io->error("Report: {$totalFindings} finding(s) detected. Exiting with failure for CI.");
-                    return Command::FAILURE;
-                }
-                $io->success('Report: No findings detected.');
-                return Command::SUCCESS;
-            }
-            if ($isCapturing) {
-                return $this->writeCapturingOutput($capturingPdo, $allCapturedSql, $isSqlDump, $isMigration, $sqlDumpOption, $migrationOption, $io);
-            }
-            if ($sets === []) {
-                $io->warning("No rules or sets registered.");
-            } else {
-                $io->success("All sets executed.");
-            }
-            return Command::SUCCESS;
-        }
-
-        foreach ($rules as $key => $def) {
-            $ruleClass = null;
-            $constraintsObj = null;
-            $inlineContext = [];
-
-            // 1) Plain string: RuleClass::class
-            if (is_string($def) && class_exists($def)) {
-                $ruleClass = $def;
-
-                // 2) Map form: RuleClass::class => ConstraintObj
-            } elseif ($def instanceof RuleConstraintInterface && is_string($key) && class_exists($key)) {
-                $ruleClass = $key;
-                $constraintsObj = $def;
-
-                // 3) Array forms
-            } elseif (is_array($def)) {
-                // 3a) ['class' => FQCN, 'constraints' => obj] (optional 'context' => array)
-                if (isset($def['class']) && is_string($def['class'])) {
-                    $ruleClass = $def['class'];
-                    if (isset($def['constraints']) && $def['constraints'] instanceof RuleConstraintInterface) {
-                        $constraintsObj = $def['constraints'];
-                    }
-                    if (isset($def['context']) && is_array($def['context'])) {
-                        $inlineContext = $def['context'];
-                    }
-                    // 3b) [FQCN, constraintsOrContext]
-                } elseif (isset($def[0]) && is_string($def[0])) {
-                    $ruleClass = $def[0];
-                    if (isset($def[1]) && $def[1] instanceof RuleConstraintInterface) {
-                        $constraintsObj = $def[1];
-                    } elseif (isset($def[1]) && is_array($def[1])) {
-                        $inlineContext = $def[1];
-                    }
-                    // 3c) Map form: RuleClass::class => ['…context…']
-                } elseif (is_string($key) && class_exists($key)) {
-                    $ruleClass = $key;
-                    $inlineContext = $def;
-                }
-
-                // 4) Map form: RuleClass::class => true/null (enable with no constraints)
-            } elseif (is_string($key) && class_exists($key)) {
-                $ruleClass = $key;
-            }
-
-            if (! $ruleClass || ! class_exists($ruleClass)) {
-                $msg = 'Unrecognized rule spec; skipping.';
-                $io->warning($msg);
-                $this->logMessage($logHandle, $msg);
-                continue;
-            }
-
-            /** @var RuleInterface $rule */
-            $rule = new $ruleClass();
-            if (! $rule instanceof RuleInterface) {
-                $msg = "Rule {$ruleClass} does not implement RuleInterface.";
-                $io->warning($msg);
-                $this->logMessage($logHandle, $msg);
-                continue;
-            }
-
-            if ($ruleClass::getDriver() !== $activeDriver) {
-                $msg = "Skipping rule {$ruleClass}: requires driver '{$ruleClass::getDriver()}', connected to '{$activeDriver}'.";
-                $io->warning($msg);
-                $this->logMessage($logHandle, $msg);
-                continue;
-            }
-
-            $title = "Running rule: " . $ruleClass::getName() . " [" . $ruleClass::getCategory() . "]";
-            $io->section($title);
-            $this->logMessage($logHandle, $title);
-
-            // Build context: constraint → array OR inline array. Dry flag always wins.
-            $ruleContext = [];
-            if ($constraintsObj instanceof RuleConstraintInterface) {
-                $ruleContext = $constraintsObj->toContext();
-            } elseif ($inlineContext !== []) {
-                $ruleContext = $inlineContext;
-            }
-            $context = $ruleContext;
-            $context['dry'] = $isCapturing ? true : $isDry;
-
-            if (! $isDry && $rule instanceof BreaksExpandContractPatternInterface) {
-                $io->warning(sprintf(
-                    '%s does not follow the Expand/Contract pattern — it modifies existing columns or table properties in-place and may lock tables. Ensure you have a backup before continuing.',
-                    $ruleClass::getName()
-                ));
-            }
-
-            $useTransaction = ! $ruleClass::isDestructive() && ! $isDry && ! $isCapturing;
-
-            try {
-                if ($useTransaction) {
-                    $pdo->beginTransaction();
-                }
-
-                $logs = $rule->apply($pdo, $io, $context);
-                $issueCount = count($logs);
-
-                if ($isCapturing) {
-                    foreach ($logs as $log) {
-                        if ($this->isSqlStatement($log->getTo())) {
-                            $allCapturedSql[] = rtrim(trim($log->getTo()), ';');
-                        }
-                    }
-                }
-
-                $reportRows[] = [
-                    'name' => $ruleClass::getName(),
-                    'count' => $issueCount,
-                    'group' => 'standalone',
-                ];
-
-                if ($isReport) {
-                    $this->logMessage($logHandle, "{$ruleClass}: {$issueCount} findings");
-                } elseif ($issueCount === 0) {
-                    $io->success('No issues found by this rule.');
-                    $this->logMessage($logHandle, "No issues found by {$ruleClass}");
-                } else {
-                    foreach ($logs as $log) {
-                        $msg = $log->getMessage();
-                        $this->logMessage($logHandle, $msg);
-                        $io->warning($msg);
-                    }
-                    $io->note("Findings: {$issueCount}");
-                    $this->logMessage($logHandle, "Findings: {$issueCount}");
-                }
-
-                if (! $isReport) {
-                    if ($useTransaction) {
-                        $pdo->commit();
-                        $io->success('Transaction committed.');
-                        $this->logMessage($logHandle, "✔ {$ruleClass} committed");
-                    } elseif ($isDry) {
-                        $io->note('Dry run: no schema changes were executed.');
-                        $this->logMessage($logHandle, "✔ {$ruleClass} rolled back (dry run)");
-                    } else {
-                        $io->success('Rule finished.');
-                        $this->logMessage($logHandle, "✔ {$ruleClass} applied");
-                    }
-                } elseif ($useTransaction) {
-                    $pdo->commit();
-                }
-            } catch (\Throwable $e) {
-                if ($useTransaction && $pdo->inTransaction()) {
-                    $pdo->rollBack();
-                }
-                $error = "Exception during rule {$ruleClass}: " . $e->getMessage();
-                $io->error($error);
-                $this->logMessage($logHandle, "✘ {$ruleClass} failed: " . $e->getMessage());
-            }
-
-            if (! $isReport) {
-                $io->newLine();
-                $this->logMessage($logHandle, str_repeat('-', 80));
-            }
-        }
-
-        if ($isReport && $reportRows !== []) {
-            $this->renderReportTable($output, $reportRows);
-        }
+        // ── Close log ─────────────────────────────────────────────────────────
 
         if ($logHandle) {
-            fwrite($logHandle, "[END] DB Fix completed at " . date('Y-m-d H:i:s') . PHP_EOL);
+            fwrite($logHandle, '[END] DB Fix completed at ' . date('Y-m-d H:i:s') . PHP_EOL);
             fclose($logHandle);
             if ($logPath) {
                 $io->note("Log written to: $logPath");
             }
         }
 
+        // ── Report exit ───────────────────────────────────────────────────────
+
         if ($isReport) {
-            $totalFindings = array_sum(array_column($reportRows, 'count'));
+            $totalFindings = array_sum(array_column($result->reportRows, 'count'));
             if ($totalFindings > 0) {
                 $io->error("Report: {$totalFindings} finding(s) detected. Exiting with failure for CI.");
                 return Command::FAILURE;
@@ -575,13 +304,35 @@ class DatabaseAnalyzerCommand extends Command
             return Command::SUCCESS;
         }
 
+        // ── Capturing output ──────────────────────────────────────────────────
+
         if ($isCapturing) {
-            return $this->writeCapturingOutput($capturingPdo, $allCapturedSql, $isSqlDump, $isMigration, $sqlDumpOption, $migrationOption, $io);
+            return $this->writeCapturingOutput(
+                $capturingPdo,
+                $result,
+                $config,
+                $isSqlDump,
+                $isMigration,
+                $sqlDumpOption,
+                $migrationOption,
+                $isImpact,
+                $impactOption,
+                $io
+            );
         }
 
-        $io->success("All rules executed.");
+        // ── Done ──────────────────────────────────────────────────────────────
+
+        if ($config->getSets() === [] && $config->getRules() === []) {
+            $io->warning('No rules or sets registered.');
+        } else {
+            $io->success('Analysis complete.');
+        }
+
         return Command::SUCCESS;
     }
+
+    // ── Private helpers ───────────────────────────────────────────────────────
 
     /**
      * @param array<array{name: string, count: int, group: string}> $rows
@@ -598,7 +349,6 @@ class DatabaseAnalyzerCommand extends Command
                 $table->addRow(new TableSeparator());
             }
             $currentGroup = $row['group'];
-
             $status = $row['count'] === 0 ? '<info>OK</info>' : '<comment>WARN</comment>';
             $table->addRow([$row['name'], $row['group'], $row['count'], $status]);
         }
@@ -608,145 +358,161 @@ class DatabaseAnalyzerCommand extends Command
         $table->addRow([new TableCell('<options=bold>TOTAL</>', [
             'colspan' => 2,
         ]), new TableCell("<options=bold>{$total}</>"), '']);
-
         $table->render();
         $output->writeln('');
     }
 
     /**
-     * Silently run all destructive rules in dry mode to count affected schema objects.
-     *
-     * @return list<\Indoctrinate\Log\Log>
+     * @param mixed $sqlDumpOption
+     * @param mixed $migrationOption
+     * @param mixed $impactOption
      */
-    private function runDestructiveDiscovery(\PDO $pdo, string $activeDriver): array
-    {
-        $null = new NullOutput();
-        $allLogs = [];
+    private function writeCapturingOutput(
+        ?CapturingPdo $capturingPdo,
+        RuleRunResult $result,
+        IndoctrinateConfig $config,
+        bool $isSqlDump,
+        bool $isMigration,
+        $sqlDumpOption,
+        $migrationOption,
+        bool $isImpact,
+        $impactOption,
+        SymfonyStyle $io
+    ): int {
+        $fromPdo = $capturingPdo ? $capturingPdo->getCapturedSql() : [];
+        $allSql = array_values(array_unique(array_merge($fromPdo, $result->capturedSql)));
+        $root = $config->getProjectRootDir();
 
-        foreach ($this->config->getSets() as $class => $rulesConfiguration) {
-            if (! is_string($class) || ! class_exists($class)) {
-                continue;
-            }
-            $set = new $class();
-            if (! $set instanceof SetInterface || $set->isAlwaysDry()) {
-                continue;
-            }
-            $constraints = is_array($rulesConfiguration) ? $rulesConfiguration : [];
-            foreach ($set->getRules() as $ruleClass) {
-                if ($ruleClass::getDriver() !== $activeDriver || ! $ruleClass::isDestructive()) {
-                    continue;
-                }
-                $ruleCtx = [
-                    'dry' => true,
-                ];
-                $constraint = $constraints[$ruleClass] ?? null;
-                if ($constraint instanceof RuleConstraintInterface) {
-                    $ruleCtx = array_replace($ruleCtx, $constraint->toContext());
-                }
-                $allLogs = array_merge($allLogs, (new $ruleClass())->apply($pdo, $null, $ruleCtx));
-            }
+        if ($isSqlDump) {
+            $dumpPath = is_string($sqlDumpOption) && $sqlDumpOption !== ''
+                ? $sqlDumpOption
+                : $root . '/indoctrinate-' . date('Y-m-d_H-i-s') . '.sql';
+            $this->artifactWriter->writeSqlDump($allSql, $dumpPath, $io);
         }
 
-        foreach ($this->config->getRules() as $ruleClass => $constraint) {
-            if (! class_exists($ruleClass) || ! is_a($ruleClass, RuleInterface::class, true)) {
-                continue;
-            }
-            if ($ruleClass::getDriver() !== $activeDriver || ! $ruleClass::isDestructive()) {
-                continue;
-            }
-            $ruleCtx = [
-                'dry' => true,
-            ];
-            if ($constraint instanceof RuleConstraintInterface) {
-                $ruleCtx = array_replace($ruleCtx, $constraint->toContext());
-            }
-            $allLogs = array_merge($allLogs, (new $ruleClass())->apply($pdo, $null, $ruleCtx));
+        if ($isMigration) {
+            $migrationDir = is_string($migrationOption) && $migrationOption !== ''
+                ? $migrationOption
+                : $root . '/migrations';
+            $this->artifactWriter->writeMigrationClass($allSql, $migrationDir, $io);
         }
 
-        return $allLogs;
+        if ($isImpact) {
+            $rawSourceDir = is_string($impactOption) && $impactOption !== ''
+                ? $impactOption
+                : $root . '/src';
+            $sourceDir = realpath($rawSourceDir) ?: $rawSourceDir;
+
+            if (! is_dir($sourceDir)) {
+                $io->warning(sprintf(
+                    'Impact source directory not found: %s — no code references could be scanned.',
+                    $sourceDir
+                ));
+            }
+
+            $changes = (new SqlChangeParser())->parse($allSql);
+            $scanResult = (new CodeReferenceScanner())->scan($sourceDir, $changes);
+            $this->renderImpactReport($scanResult['findings'], $scanResult['filesScanned'], $sourceDir, $io);
+        }
+
+        return Command::SUCCESS;
     }
 
     /**
-     * @param array<string|int, mixed> $sets
-     * @param array<string|int, mixed> $rules
-     * @return list<array{name: string, description: string}>
+     * @param list<array{change: array<string, mixed>, references: list<array{file: string, line: int, content: string}>}> $findings
      */
-    private function collectDestructiveRules(array $sets, array $rules, string $activeDriver): array
+    private function renderImpactReport(array $findings, int $filesScanned, string $sourceDir, SymfonyStyle $io): void
     {
-        $found = [];
-        $seen = [];
+        $io->section(sprintf(
+            'Code Impact Analysis — %s/  (%d PHP file(s) scanned)',
+            rtrim($sourceDir, '/'),
+            $filesScanned
+        ));
 
-        foreach (array_keys($sets) as $class) {
-            if (! is_string($class) || ! class_exists($class)) {
-                continue;
-            }
-            $set = new $class();
-            if (! $set instanceof SetInterface || $set->isAlwaysDry()) {
-                continue;
-            }
-            foreach ($set->getRules() as $ruleClass) {
-                if ($ruleClass::getDriver() !== $activeDriver || ! $ruleClass::isDestructive() || isset($seen[$ruleClass])) {
-                    continue;
+        if ($findings === []) {
+            $io->success('No schema changes detected — nothing to scan.');
+            return;
+        }
+
+        $bySeverity = [
+            'high' => [],
+            'medium' => [],
+            'low' => [],
+        ];
+        foreach ($findings as $finding) {
+            $sev = (string) ($finding['change']['severity'] ?? 'low');
+            $bySeverity[$sev][] = $finding;
+        }
+
+        $severityLabel = [
+            'high' => '<error> HIGH </error>',
+            'medium' => '<comment> MEDIUM </comment>',
+            'low' => '<info> LOW </info>',
+        ];
+
+        $totalRefs = 0;
+        $affectedFiles = [];
+
+        foreach (['high', 'medium', 'low'] as $sev) {
+            foreach ($bySeverity[$sev] as $finding) {
+                $change = $finding['change'];
+                $refs = $finding['references'];
+
+                $io->writeln($severityLabel[$sev] . '  ' . $this->formatChangeSummary($change));
+
+                if ($refs === []) {
+                    $io->writeln('         No references found.');
+                } else {
+                    $cwd = getcwd() . '/';
+                    foreach ($refs as $ref) {
+                        $totalRefs++;
+                        $affectedFiles[$ref['file']] = true;
+                        $short = str_replace($cwd, '', $ref['file']);
+                        $io->writeln(sprintf('         <comment>%s:%d</comment>', $short, $ref['line']));
+                        $io->writeln(sprintf('           %s', $ref['content']));
+                    }
                 }
-                $seen[$ruleClass] = true;
-                $found[] = [
-                    'name' => $ruleClass::getName(),
-                    'description' => $ruleClass::getDescription(),
-                ];
+
+                $io->newLine();
             }
         }
 
-        foreach ($rules as $key => $def) {
-            $ruleClass = $this->resolveRuleClass($key, $def);
-            if ($ruleClass === null || ! class_exists($ruleClass) || ! is_a($ruleClass, RuleInterface::class, true)) {
-                continue;
-            }
-            if ($ruleClass::getDriver() !== $activeDriver || ! $ruleClass::isDestructive() || isset($seen[$ruleClass])) {
-                continue;
-            }
-            $seen[$ruleClass] = true;
-            $found[] = [
-                'name' => $ruleClass::getName(),
-                'description' => $ruleClass::getDescription(),
-            ];
-        }
+        $io->writeln(str_repeat('─', 60));
 
-        return $found;
+        if ($totalRefs === 0) {
+            $io->success('Impact analysis complete — no code references found for the planned changes.');
+        } else {
+            $io->warning(sprintf(
+                '%d reference(s) across %d file(s) to review before applying --fix.',
+                $totalRefs,
+                count($affectedFiles)
+            ));
+        }
     }
 
     /**
-     * @param mixed $key
-     * @param mixed $def
+     * @param array<string, mixed> $change
      */
-    private function resolveRuleClass($key, $def): ?string
+    private function formatChangeSummary(array $change): string
     {
-        if (is_string($def) && class_exists($def)) {
-            return $def;
+        $table = (string) ($change['table'] ?? '');
+        $col = (string) ($change['column'] ?? '');
+        $type = (string) ($change['dataType'] ?? '');
+
+        switch ($change['type'] ?? '') {
+            case 'rename_column':
+                return sprintf('%s.<options=bold>%s</> → <options=bold>%s</>  (%s)', $table, $col, $change['newColumn'] ?? '?', $type);
+            case 'drop_column':
+                return sprintf('%s.<options=bold>%s</>  <error>DROP</error>', $table, $col);
+            case 'modify_column':
+                return sprintf('%s.<options=bold>%s</>  type → %s', $table, $col, $type);
+            case 'add_column':
+                return sprintf('%s.<options=bold>%s</>  <info>ADD</info> %s  (new column)', $table, $col, $type);
+            default:
+                return sprintf('%s.%s', $table, $col);
         }
-        if ($def instanceof RuleConstraintInterface && is_string($key) && class_exists($key)) {
-            return $key;
-        }
-        if (is_array($def)) {
-            if (isset($def['class']) && is_string($def['class'])) {
-                return $def['class'];
-            }
-            if (isset($def[0]) && is_string($def[0])) {
-                return $def[0];
-            }
-            if (is_string($key) && class_exists($key)) {
-                return $key;
-            }
-        }
-        if (is_string($key) && class_exists($key)) {
-            return $key;
-        }
-        return null;
     }
 
-    /**
-     * Ensure indoctrinate.php exists. If we create it now, set $this->configJustCreated=true
-     * and return SUCCESS so the caller can exit early.
-     */
     private function ensureConfigurationFile(Filesystem $filesystem, SymfonyStyle $io, string $configFilePath, string $distFilePath, bool $isProd): int
     {
         if (is_file($configFilePath)) {
@@ -759,10 +525,8 @@ class DatabaseAnalyzerCommand extends Command
         }
 
         $io->warning("Configuration file not found: $configFilePath");
-        $generate = $io->confirm("Do you want to generate it from $distFilePath?", true);
-
-        if (! $generate) {
-            $io->error("Aborted: Configuration file is required.");
+        if (! $io->confirm("Do you want to generate it from $distFilePath?", true)) {
+            $io->error('Aborted: Configuration file is required.');
             return Command::FAILURE;
         }
 
@@ -808,12 +572,11 @@ class DatabaseAnalyzerCommand extends Command
             return $this->credentialsFromDsn($config->getContext()->getDsn());
         }
 
-        // Discrete options
-        $host = (string) ($input->getOption('db-host') ?? null);
-        $name = (string) ($input->getOption('db-name') ?? null);
-        $user = (string) ($input->getOption('db-user') ?? null);
+        $host = (string) ($input->getOption('db-host') ?? '');
+        $name = (string) ($input->getOption('db-name') ?? '');
+        $user = (string) ($input->getOption('db-user') ?? '');
 
-        if ($host === '' || $host === '0' || ($name === '' || $name === '0') || ($user === '' || $user === '0')) {
+        if ($host === '' || $name === '' || $user === '') {
             throw new \InvalidArgumentException(
                 'In --prod, provide --dsn OR --db-host --db-name --db-user [--db-pass|--db-pass-file] [--db-port].'
             );
@@ -833,119 +596,14 @@ class DatabaseAnalyzerCommand extends Command
             $pass = trim($contents);
         }
 
-        $port = (int) ($input->getOption('db-port') ?: '3306');
-
         return new ConnectionCredentials(
             'mysql',
             $host,
-            $port,
+            (int) ($input->getOption('db-port') ?: '3306'),
             $name,
             $user,
             $pass
         );
-    }
-
-    /**
-     * @param list<string> $allCapturedSql
-     * @param mixed $sqlDumpOption
-     * @param mixed $migrationOption
-     */
-    private function writeCapturingOutput(?CapturingPdo $capturingPdo, array $allCapturedSql, bool $isSqlDump, bool $isMigration, $sqlDumpOption, $migrationOption, SymfonyStyle $io): int
-    {
-        $fromPdo = $capturingPdo ? $capturingPdo->getCapturedSql() : [];
-        $allSql = array_values(array_unique(array_merge($fromPdo, $allCapturedSql)));
-
-        if ($isSqlDump) {
-            $dumpPath = is_string($sqlDumpOption) && $sqlDumpOption !== ''
-                ? $sqlDumpOption
-                : getcwd() . '/indoctrinate-' . date('Y-m-d_H-i-s') . '.sql';
-            $this->writeSqlDump($allSql, $dumpPath, $io);
-        }
-
-        if ($isMigration) {
-            $migrationDir = is_string($migrationOption) && $migrationOption !== ''
-                ? $migrationOption
-                : getcwd() . '/migrations';
-            $this->writeMigrationClass($allSql, $migrationDir, $io);
-        }
-
-        return Command::SUCCESS;
-    }
-
-    /**
-     * @param list<string> $sql
-     */
-    private function writeSqlDump(array $sql, string $path, SymfonyStyle $io): void
-    {
-        $lines = [];
-        $lines[] = '-- Generated by Indoctrinate on ' . date('Y-m-d H:i:s');
-        $lines[] = '';
-
-        foreach ($sql as $statement) {
-            $lines[] = $statement . ';';
-        }
-
-        $lines[] = '';
-        file_put_contents($path, implode("\n", $lines));
-        $io->success("SQL dump written to: {$path}");
-    }
-
-    /**
-     * @param list<string> $sql
-     */
-    private function writeMigrationClass(array $sql, string $dir, SymfonyStyle $io): void
-    {
-        if (! is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-
-        $version = 'Version' . date('YmdHis');
-        $filename = rtrim($dir, '/') . '/' . $version . '.php';
-
-        $sqlLines = [];
-        foreach ($sql as $statement) {
-            $escaped = str_replace("'", "\\'", $statement);
-            $sqlLines[] = "        \$this->addSql('{$escaped}');";
-        }
-
-        $upBody = $sqlLines !== [] ? implode("\n", $sqlLines) : '        // No SQL captured.';
-
-        $content = '<?php' . "\n\n"
-            . 'declare(strict_types=1);' . "\n\n"
-            . 'namespace DoctrineMigrations;' . "\n\n"
-            . 'use Doctrine\DBAL\Schema\Schema;' . "\n"
-            . 'use Doctrine\DBAL\Migrations\AbstractMigration;' . "\n\n"
-            . 'final class ' . $version . ' extends AbstractMigration' . "\n"
-            . '{' . "\n"
-            . '    public function getDescription(): string' . "\n"
-            . '    {' . "\n"
-            . "        return 'Generated by Indoctrinate';\n"
-            . '    }' . "\n\n"
-            . '    public function up(Schema $schema): void' . "\n"
-            . '    {' . "\n"
-            . $upBody . "\n"
-            . '    }' . "\n\n"
-            . '    public function down(Schema $schema): void' . "\n"
-            . '    {' . "\n"
-            . '        // No automatic down migration — restore from a backup if needed.' . "\n"
-            . '    }' . "\n"
-            . '}' . "\n";
-
-        file_put_contents($filename, $content);
-        $io->success("Doctrine migration written to: {$filename}");
-    }
-
-    private function isSqlStatement(string $s): bool
-    {
-        $upper = ltrim(strtoupper(trim($s)));
-
-        foreach (['ALTER ', 'CREATE ', 'DROP ', 'RENAME ', 'INSERT ', 'UPDATE ', 'DELETE ', 'TRUNCATE '] as $kw) {
-            if (strpos($upper, $kw) === 0) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function credentialsFromDsn(string $dsn): ConnectionCredentials
@@ -955,24 +613,18 @@ class DatabaseAnalyzerCommand extends Command
             throw new \InvalidArgumentException('Invalid --dsn (expected scheme://user:pass@host:port/database)');
         }
 
-        $driver = rtrim((string) ($parts['scheme'] ?? 'mysql'), ':/');
-        $host = (string) ($parts['host'] ?? '127.0.0.1');
-        $port = (int) ($parts['port'] ?? '3306');
         $database = ltrim((string) ($parts['path'] ?? ''), '/');
-        $user = isset($parts['user']) ? urldecode($parts['user']) : '';
-        $pass = isset($parts['pass']) ? urldecode($parts['pass']) : '';
-
         if ($database === '') {
             throw new \InvalidArgumentException('Missing database name in --dsn (…/database at the end)');
         }
 
         return new ConnectionCredentials(
-            $driver,
-            $host,
-            $port,
+            rtrim((string) ($parts['scheme'] ?? 'mysql'), ':/'),
+            (string) ($parts['host'] ?? '127.0.0.1'),
+            (int) ($parts['port'] ?? 3306),
             $database,
-            $user,
-            $pass
+            isset($parts['user']) ? urldecode($parts['user']) : '',
+            isset($parts['pass']) ? urldecode($parts['pass']) : ''
         );
     }
 }

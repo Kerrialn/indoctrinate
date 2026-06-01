@@ -19,12 +19,18 @@ final class EnsureAutoIncrementPrimaryKeyRuleTest extends TestCase
             function (string $sql) {
                 // getPrimaryKeyColumns → single 'id'
                 if (strpos($sql, 'CONSTRAINT_TYPE') !== false) {
-                    return $this->stmtReturningRows([['COLUMN_NAME' => 'id']]);
+                    return $this->stmtReturningRows([[
+                        'COLUMN_NAME' => 'id',
+                    ]]);
                 }
                 // getColumnInfo for 'id' → int auto_increment
                 return $this->stmtReturningFetch([
-                    'COLUMN_NAME' => 'id', 'DATA_TYPE' => 'int', 'COLUMN_TYPE' => 'int unsigned',
-                    'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => null, 'EXTRA' => 'auto_increment',
+                    'COLUMN_NAME' => 'id',
+                    'DATA_TYPE' => 'int',
+                    'COLUMN_TYPE' => 'int unsigned',
+                    'IS_NULLABLE' => 'NO',
+                    'COLUMN_DEFAULT' => null,
+                    'EXTRA' => 'auto_increment',
                 ]);
             }
         );
@@ -55,7 +61,9 @@ final class EnsureAutoIncrementPrimaryKeyRuleTest extends TestCase
             }
         );
 
-        $logs = (new EnsureAutoIncrementPrimaryKeyRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new EnsureAutoIncrementPrimaryKeyRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertNotEmpty($logs);
         $this->assertSame('users', $logs[0]->getTable());
@@ -66,11 +74,17 @@ final class EnsureAutoIncrementPrimaryKeyRuleTest extends TestCase
     public function testFlagsCompositePrimaryKeyInDryMode(): void
     {
         $compositePkStmt = $this->stmtReturningRows([
-            ['COLUMN_NAME' => 'user_id'],
-            ['COLUMN_NAME' => 'role_id'],
+            [
+                'COLUMN_NAME' => 'user_id',
+            ],
+            [
+                'COLUMN_NAME' => 'role_id',
+            ],
         ]);
         // isPureJoinTable check: getPrimaryKeyColumns returns composite, then getForeignKeys returns only 1 → NOT a join table
-        $fkStmt = $this->stmtReturningRows([['COLUMN_NAME' => 'user_id']]); // only 1 FK col → not pure join
+        $fkStmt = $this->stmtReturningRows([[
+            'COLUMN_NAME' => 'user_id',
+        ]]); // only 1 FK col → not pure join
 
         $pdo = $this->buildPdo(
             ['user_roles'],
@@ -85,7 +99,9 @@ final class EnsureAutoIncrementPrimaryKeyRuleTest extends TestCase
             }
         );
 
-        $logs = (new EnsureAutoIncrementPrimaryKeyRule())->apply($pdo, new NullOutput(), ['dry' => true]);
+        $logs = (new EnsureAutoIncrementPrimaryKeyRule())->apply($pdo, new NullOutput(), [
+            'dry' => true,
+        ]);
 
         $this->assertNotEmpty($logs);
         $this->assertSame('user_roles', $logs[0]->getTable());
@@ -95,9 +111,21 @@ final class EnsureAutoIncrementPrimaryKeyRuleTest extends TestCase
     public function testRecognizesJoinTableAndEmitsOkLog(): void
     {
         // join table: 2-column composite PK, both are FKs, no other columns
-        $pkStmt = $this->stmtReturningRows([['COLUMN_NAME' => 'user_id'], ['COLUMN_NAME' => 'tag_id']]);
-        $fkStmt = $this->stmtReturningRows([['COLUMN_NAME' => 'user_id'], ['COLUMN_NAME' => 'tag_id']]);
-        $allColsStmt = $this->stmtReturningRows([['COLUMN_NAME' => 'user_id'], ['COLUMN_NAME' => 'tag_id']]);
+        $pkStmt = $this->stmtReturningRows([[
+            'COLUMN_NAME' => 'user_id',
+        ], [
+            'COLUMN_NAME' => 'tag_id',
+        ]]);
+        $fkStmt = $this->stmtReturningRows([[
+            'COLUMN_NAME' => 'user_id',
+        ], [
+            'COLUMN_NAME' => 'tag_id',
+        ]]);
+        $allColsStmt = $this->stmtReturningRows([[
+            'COLUMN_NAME' => 'user_id',
+        ], [
+            'COLUMN_NAME' => 'tag_id',
+        ]]);
 
         $callOrder = 0;
         $pdo = $this->buildPdo(
@@ -137,7 +165,9 @@ final class EnsureAutoIncrementPrimaryKeyRuleTest extends TestCase
         return $pdo;
     }
 
-    /** @param list<array<string,string>> $rows */
+    /**
+     * @param list<array<string,string>> $rows
+     */
     private function stmtReturningRows(array $rows): PDOStatement
     {
         $stmt = $this->createMock(PDOStatement::class);
@@ -146,7 +176,9 @@ final class EnsureAutoIncrementPrimaryKeyRuleTest extends TestCase
         return $stmt;
     }
 
-    /** @param array<string,mixed>|false $row */
+    /**
+     * @param array<string,mixed>|false $row
+     */
     private function stmtReturningFetch($row): PDOStatement
     {
         $stmt = $this->createMock(PDOStatement::class);
